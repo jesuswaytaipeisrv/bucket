@@ -104,6 +104,7 @@ function runnerMarkup(role, progress, pouring, label) {
     <span class="runner-hair"></span><span class="runner-head"><span class="runner-eye eye-left"></span><span class="runner-eye eye-right"></span><span class="runner-cheek cheek-left"></span><span class="runner-cheek cheek-right"></span></span><span class="runner-body"><span class="runner-badge">♥</span></span><span class="runner-legs"></span>
     <span class="runner-arm runner-arm-left"></span><span class="runner-arm runner-arm-right"></span>
     <span class="runner-bucket runner-bucket-left"><i></i></span><span class="runner-bucket runner-bucket-right"><i></i></span>
+    <span class="bucket-spray bucket-spray-left"><i></i><i></i><i></i></span><span class="bucket-spray bucket-spray-right"><i></i><i></i><i></i></span>
     <span class="irrigation-splash"></span>
   </div>`;
 }
