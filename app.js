@@ -82,25 +82,36 @@ function teamMetrics(teamId) {
   const { bucketCapacity, growthStages } = game.settings;
   const deliveredBuckets = Math.floor(units / bucketCapacity);
   const maxGrowth = FINISH_PERSON_COUNT * growthStages;
-  const growthTotal = Math.min(deliveredBuckets, maxGrowth);
-  const people = Array.from({ length: FINISH_PERSON_COUNT }, (_, index) => Math.min(growthStages, Math.floor((growthTotal + FINISH_PERSON_COUNT - 1 - index) / FINISH_PERSON_COUNT)));
+  const growthTotal = Math.min(units / bucketCapacity, maxGrowth);
+  const personGrowth = growthTotal / FINISH_PERSON_COUNT;
+  const people = Array.from({ length: FINISH_PERSON_COUNT }, () => Math.min(growthStages, personGrowth));
   return { units, deliveredBuckets, growthTotal, maxGrowth, people, smallFill: Math.round(((units % bucketCapacity) / bucketCapacity) * 100), progress: Math.round((growthTotal / maxGrowth) * 100) };
 }
 
 function personMarkup(stage, index, growthStages) {
-  const scale = 0.38 + (stage / growthStages) * 0.62;
-  const label = stage === growthStages ? "已長大" : `成長 ${stage} / ${growthStages}`;
-  return `<div class="tiny-person ${stage === growthStages ? "is-grown" : ""}" style="--person-scale:${scale}" aria-label="第 ${index + 1} 位小人，${label}"><span class="person-head"></span><span class="person-body"></span><span class="person-legs"></span></div>`;
+  const ratio = Math.min(1, stage / growthStages);
+  const scale = 0.42 + ratio * 0.58;
+  const label = ratio >= 1 ? "已長大" : `吸收水分 ${Math.round(ratio * 100)}%`;
+  return `<div class="tiny-person ${ratio >= 1 ? "is-grown" : ""}" style="--person-scale:${scale};--person-water:${Math.round(ratio * 100)}%" aria-label="第 ${index + 1} 位小人，${label}">
+    <span class="person-hair"></span><span class="person-head"><span class="person-eye eye-left"></span><span class="person-eye eye-right"></span><span class="person-cheek cheek-left"></span><span class="person-cheek cheek-right"></span></span>
+    <span class="person-body"><span class="person-heart"></span></span><span class="person-arms"></span><span class="person-legs"></span>
+  </div>`;
 }
 
 function runnerMarkup(role, progress, pouring, label) {
-  const offset = Math.round(progress * 245);
+  const offset = Math.round(progress * 172);
   return `<div class="relay-runner ${role} ${pouring ? "is-pouring" : ""}" style="--relay-offset:-${offset}px" aria-label="${label}">
-    <span class="runner-head"></span><span class="runner-body"></span><span class="runner-legs"></span>
+    <span class="runner-hair"></span><span class="runner-head"><span class="runner-eye eye-left"></span><span class="runner-eye eye-right"></span><span class="runner-cheek cheek-left"></span><span class="runner-cheek cheek-right"></span></span><span class="runner-body"><span class="runner-badge">♥</span></span><span class="runner-legs"></span>
     <span class="runner-arm runner-arm-left"></span><span class="runner-arm runner-arm-right"></span>
-    <span class="runner-bucket runner-bucket-left"></span><span class="runner-bucket runner-bucket-right"></span>
+    <span class="runner-bucket runner-bucket-left"><i></i></span><span class="runner-bucket runner-bucket-right"><i></i></span>
     <span class="irrigation-splash"></span>
   </div>`;
+}
+
+function isPouringAtFinish(teamId) {
+  const team = game.teams[teamId];
+  const elapsed = game.status === "running" && team.lastDeliveryAt ? Date.now() - team.lastDeliveryAt : -1;
+  return elapsed >= RELAY_TIMING.outbound && elapsed < RELAY_TIMING.outbound + RELAY_TIMING.pour;
 }
 
 function relayMarkup(teamId) {
@@ -120,8 +131,12 @@ function relayMarkup(teamId) {
 
 function crowdMarkup(teamId) {
   const members = teamPlayers(teamId);
-  if (!members.length) return '<span class="crowd-empty">等待隊員加入</span>';
-  const visible = members.slice(0, 12).map((player, index) => `<span class="crowd-member" style="--crowd-shift:${(index % 4) * 4}px" title="${escapeHtml(player.name)}"><span></span></span>`).join("");
+  const visibleCount = Math.max(7, Math.min(12, members.length));
+  const visible = Array.from({ length: visibleCount }, (_, index) => {
+    const player = members[index];
+    const name = player?.name || "接力隊員";
+    return `<span class="crowd-member ${player ? "" : "is-support"}" style="--crowd-shift:${(index % 3) * 3}px" title="${escapeHtml(name)}" aria-label="${escapeHtml(name)}"><span class="crowd-hair"></span><span class="crowd-face"><i class="eye-left"></i><i class="eye-right"></i></span><span class="crowd-shirt"></span></span>`;
+  }).join("");
   const overflow = members.length > 12 ? `<strong class="crowd-overflow">+${members.length - 12}</strong>` : "";
   return `${visible}${overflow}`;
 }
@@ -133,12 +148,12 @@ function teamBoardMarkup(teamId) {
   return `<article class="team-board vertical-team" style="--team:${meta.color};--team-dark:${meta.dark};--growth:${metric.progress}%">
     <header class="team-board-header"><div><h3>${meta.name}</h3><span>${teamPlayers(teamId).length} 位隊員，輪流雙桶接力</span></div><strong>${metric.deliveredBuckets} 桶</strong></header>
     <div class="vertical-lane" aria-label="${meta.name}由下往上雙桶灌溉">
-      <div class="finish-platform"><span class="finish-label">終點灌溉區</span><div class="tiny-people">${people}</div></div>
+      <div class="finish-platform ${isPouringAtFinish(teamId) ? "is-being-watered" : ""}"><span class="finish-label">終點灌溉區</span><div class="watering-rain" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><div class="tiny-people">${people}</div></div>
       <div class="growth-meter"><span style="height:${metric.progress}%"></span></div>
       <div class="runner-group">${relayMarkup(teamId)}</div>
       <div class="water-well"><span>取水起點</span><div class="starting-crowd" aria-label="${meta.name}起點隊員">${crowdMarkup(teamId)}</div></div>
     </div>
-    <footer class="team-board-footer"><span>提水 ${metric.units} 次</span><strong>長大 ${metric.growthTotal} / ${metric.maxGrowth}</strong></footer>
+    <footer class="team-board-footer"><span>提水 ${metric.units} 次</span><strong>成長水分 ${metric.progress}%</strong></footer>
   </article>`;
 }
 
@@ -194,7 +209,7 @@ function renderPlayerPanel() {
   elements.yourTeamLabel.textContent = TEAM_META[teamId].name; elements.tapCounter.textContent = `${Number(player?.taps || 0)} 次`;
   elements.playerProgress.innerHTML = teamBoardMarkup(teamId); elements.tapButton.disabled = game.status !== "running";
   elements.tapHeading.textContent = game.status === "running" ? "快速打水" : game.status === "finished" ? "本回合結束" : game.status === "countdown" ? `${countdownSeconds} 秒後開始` : "準備提水";
-  elements.tapMessage.textContent = game.status === "running" ? `隊伍已讓 ${metric.growthTotal} 次成長發生，繼續提水。` : game.status === "finished" ? `${TEAM_META[game.winner]?.name || "本回合"}最先完成灌溉。` : game.status === "countdown" ? "倒數中，先把手指放在按鈕上。" : "等待主持人開始。";
+  elements.tapMessage.textContent = game.status === "running" ? `五位小人的成長水分已達 ${metric.progress}%，繼續提水。` : game.status === "finished" ? `${TEAM_META[game.winner]?.name || "本回合"}最先完成灌溉。` : game.status === "countdown" ? "倒數中，先把手指放在按鈕上。" : "等待主持人開始。";
 }
 
 function writeLocalState(next) { game = normalizeState(next); localStorage.setItem(localKey, JSON.stringify(game)); backend.channel?.postMessage(game); render(); }
