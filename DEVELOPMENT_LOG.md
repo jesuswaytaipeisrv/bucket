@@ -107,6 +107,7 @@
 - QR Code 由隨專案發布的 MIT 開源 `qrcodejs` 函式庫產生，不傳送玩家網址給 QR Code 產生服務，無額外付費或 CDN 依賴。
 - 快取版本更新為 `styles.css?v=20260620-8` 與 `app.js?v=20260620-8`。
 - 已於本機房間 `RETURNQA2026` 驗證 QR Code 成功產生，且「複製連線網址」可回報成功狀態。
+- 已同步至 GitHub `main`，GitHub Pages 將自動重新建置主持台 QR Code。
 
 ### 2026-06-19 至 2026-06-20：GitHub 發布
 
