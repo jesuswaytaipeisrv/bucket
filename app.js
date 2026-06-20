@@ -1,6 +1,7 @@
 import { firebaseConfig } from "./firebase-config.js";
 
-const TEAM_SIZE = 5;
+const FINISH_PERSON_COUNT = 5;
+const RELAY_TIMING = { outbound: 1600, pour: 850, return: 2200 };
 const TEAM_META = {
   coral: { name: "晨露隊", color: "#e76f51", dark: "#b74733" },
   river: { name: "河浪隊", color: "#277da1", dark: "#15546f" },
@@ -34,9 +35,9 @@ const elements = {
 
 function createDefaultState() {
   return {
-    version: 3, round: 1, status: "lobby", countdownEndsAt: null, startedAt: null, finishedAt: null, winner: null,
+    version: 4, round: 1, status: "lobby", countdownEndsAt: null, startedAt: null, finishedAt: null, winner: null,
     settings: { bucketCapacity: 24, growthStages: 4, countdownSeconds: 5 },
-    teams: Object.fromEntries(Object.keys(TEAM_META).map((teamId) => [teamId, { waterUnits: 0 }])), players: {}
+    teams: Object.fromEntries(Object.keys(TEAM_META).map((teamId) => [teamId, { waterUnits: 0, deliveryIndex: -1, lastDeliveryAt: 0 }])), players: {}
   };
 }
 
@@ -46,21 +47,25 @@ function clampNumber(value, fallback, min, max) {
 }
 
 function normalizeState(value) {
-  if (!value || value.version !== 3) return createDefaultState();
+  if (!value || ![3, 4].includes(value.version)) return createDefaultState();
   const base = createDefaultState();
   const source = value;
   const players = Object.fromEntries(Object.entries(source.players || {}).filter(([, player]) => player).map(([id, player]) => [id, {
     name: String(player.name || "隊員").slice(0, 16), team: TEAM_META[player.team] ? player.team : null, taps: clampNumber(player.taps, 0, 0, 1000000), joinedAt: clampNumber(player.joinedAt, 0, 0, Number.MAX_SAFE_INTEGER)
   }]));
   return {
-    ...base, ...source, version: 3, round: clampNumber(source.round, 1, 1, 100000),
+    ...base, ...source, version: 4, round: clampNumber(source.round, 1, 1, 100000),
     status: ["lobby", "countdown", "running", "finished"].includes(source.status) ? source.status : "lobby",
     settings: {
       bucketCapacity: clampNumber(source.settings?.bucketCapacity, 24, 5, 100),
       growthStages: clampNumber(source.settings?.growthStages, 4, 1, 8),
       countdownSeconds: clampNumber(source.settings?.countdownSeconds, 5, 1, 20)
     },
-    teams: Object.fromEntries(Object.keys(TEAM_META).map((teamId) => [teamId, { waterUnits: clampNumber(source.teams?.[teamId]?.waterUnits, 0, 0, 1000000) }])),
+    teams: Object.fromEntries(Object.keys(TEAM_META).map((teamId) => [teamId, {
+      waterUnits: clampNumber(source.teams?.[teamId]?.waterUnits, 0, 0, 1000000),
+      deliveryIndex: clampNumber(source.teams?.[teamId]?.deliveryIndex, -1, -1, 1000000),
+      lastDeliveryAt: clampNumber(source.teams?.[teamId]?.lastDeliveryAt, 0, 0, Number.MAX_SAFE_INTEGER)
+    }])),
     players, winner: TEAM_META[source.winner] ? source.winner : null
   };
 }
@@ -76,42 +81,88 @@ function teamMetrics(teamId) {
   const units = game.teams[teamId].waterUnits;
   const { bucketCapacity, growthStages } = game.settings;
   const deliveredBuckets = Math.floor(units / bucketCapacity);
-  const maxGrowth = TEAM_SIZE * growthStages;
-  const growthTotal = Math.min(deliveredBuckets, maxGrowth);
-  const people = Array.from({ length: TEAM_SIZE }, (_, index) => Math.min(growthStages, Math.floor((growthTotal + TEAM_SIZE - 1 - index) / TEAM_SIZE)));
+  const maxGrowth = FINISH_PERSON_COUNT * growthStages;
+  const growthTotal = Math.min(units / bucketCapacity, maxGrowth);
+  const personGrowth = growthTotal / FINISH_PERSON_COUNT;
+  const people = Array.from({ length: FINISH_PERSON_COUNT }, () => Math.min(growthStages, personGrowth));
   return { units, deliveredBuckets, growthTotal, maxGrowth, people, smallFill: Math.round(((units % bucketCapacity) / bucketCapacity) * 100), progress: Math.round((growthTotal / maxGrowth) * 100) };
 }
 
 function personMarkup(stage, index, growthStages) {
-  const scale = 0.38 + (stage / growthStages) * 0.62;
-  const label = stage === growthStages ? "已長大" : `成長 ${stage} / ${growthStages}`;
-  return `<div class="tiny-person ${stage === growthStages ? "is-grown" : ""}" style="--person-scale:${scale}" aria-label="第 ${index + 1} 位小人，${label}"><span class="person-head"></span><span class="person-body"></span><span class="person-legs"></span></div>`;
+  const ratio = Math.min(1, stage / growthStages);
+  const scale = 0.42 + ratio * 0.58;
+  const label = ratio >= 1 ? "已長大" : `吸收水分 ${Math.round(ratio * 100)}%`;
+  return `<div class="tiny-person ${ratio >= 1 ? "is-grown" : ""}" style="--person-scale:${scale};--person-water:${Math.round(ratio * 100)}%" aria-label="第 ${index + 1} 位小人，${label}">
+    <span class="person-hair"></span><span class="person-head"><span class="person-eye eye-left"></span><span class="person-eye eye-right"></span><span class="person-cheek cheek-left"></span><span class="person-cheek cheek-right"></span></span>
+    <span class="person-body"><span class="person-heart"></span></span><span class="person-arms"></span><span class="person-legs"></span>
+  </div>`;
+}
+
+function runnerMarkup(role, progress, pouring, label) {
+  const offset = Math.round(progress * 172);
+  return `<div class="relay-runner ${role} ${pouring ? "is-pouring" : ""}" style="--relay-offset:-${offset}px" aria-label="${label}">
+    <span class="runner-hair"></span><span class="runner-head"><span class="runner-eye eye-left"></span><span class="runner-eye eye-right"></span><span class="runner-cheek cheek-left"></span><span class="runner-cheek cheek-right"></span></span><span class="runner-body"><span class="runner-badge">♥</span></span><span class="runner-legs"></span>
+    <span class="runner-arm runner-arm-left"></span><span class="runner-arm runner-arm-right"></span>
+    <span class="runner-bucket runner-bucket-left"><i></i></span><span class="runner-bucket runner-bucket-right"><i></i></span>
+    <span class="irrigation-splash"></span>
+  </div>`;
+}
+
+function isPouringAtFinish(teamId) {
+  const team = game.teams[teamId];
+  const elapsed = game.status === "running" && team.lastDeliveryAt ? Date.now() - team.lastDeliveryAt : -1;
+  return elapsed >= RELAY_TIMING.outbound && elapsed < RELAY_TIMING.outbound + RELAY_TIMING.pour;
+}
+
+function relayMarkup(teamId) {
+  const team = game.teams[teamId];
+  const members = teamPlayers(teamId);
+  const totalDuration = RELAY_TIMING.outbound + RELAY_TIMING.pour + RELAY_TIMING.return;
+  const elapsed = game.status === "running" && team.lastDeliveryAt ? Date.now() - team.lastDeliveryAt : totalDuration;
+  if (!members.length || elapsed < 0 || elapsed >= totalDuration) return "";
+  const runnerIndex = team.deliveryIndex >= 0 ? team.deliveryIndex % members.length : 0;
+  const currentName = members[runnerIndex]?.name || "隊員";
+  if (elapsed < RELAY_TIMING.outbound) return runnerMarkup("is-outbound", elapsed / RELAY_TIMING.outbound, false, `${currentName}正提著兩桶水前往灌溉`);
+  if (elapsed < RELAY_TIMING.outbound + RELAY_TIMING.pour) return runnerMarkup("is-pouring", 1, true, `${currentName}正在灌溉`);
+  const returnProgress = (elapsed - RELAY_TIMING.outbound - RELAY_TIMING.pour) / RELAY_TIMING.return;
+  const nextIndex = (runnerIndex + 1) % members.length;
+  return `${runnerMarkup("is-returning", 1 - returnProgress, false, `${currentName}正提著空桶返回起點`)}${runnerMarkup("is-next-outbound", Math.min(returnProgress * 1.18, 1), false, `${members[nextIndex]?.name || "下一位隊員"}接力出發`)}`;
+}
+
+function crowdMarkup(teamId) {
+  const members = teamPlayers(teamId);
+  const visibleCount = Math.max(7, Math.min(12, members.length));
+  const visible = Array.from({ length: visibleCount }, (_, index) => {
+    const player = members[index];
+    const name = player?.name || "接力隊員";
+    return `<span class="crowd-member ${player ? "" : "is-support"}" style="--crowd-shift:${(index % 3) * 3}px" title="${escapeHtml(name)}" aria-label="${escapeHtml(name)}"><span class="crowd-hair"></span><span class="crowd-face"><i class="eye-left"></i><i class="eye-right"></i></span><span class="crowd-shirt"></span></span>`;
+  }).join("");
+  const overflow = members.length > 12 ? `<strong class="crowd-overflow">+${members.length - 12}</strong>` : "";
+  return `${visible}${overflow}`;
 }
 
 function teamBoardMarkup(teamId) {
   const meta = TEAM_META[teamId];
   const metric = teamMetrics(teamId);
-  const climb = 12 + metric.smallFill * 0.72;
-  const runners = Array.from({ length: TEAM_SIZE }, (_, index) => `<div class="bucket-runner" style="--runner-left:${10 + index * 20}%;--runner-climb:-${climb + (index % 2) * 4}%"><span class="runner-head"></span><span class="runner-body"></span><span class="runner-bucket"></span></div>`).join("");
   const people = metric.people.map((stage, index) => personMarkup(stage, index, game.settings.growthStages)).join("");
   return `<article class="team-board vertical-team" style="--team:${meta.color};--team-dark:${meta.dark};--growth:${metric.progress}%">
-    <header class="team-board-header"><div><h3>${meta.name}</h3><span>${teamPlayers(teamId).length} / ${TEAM_SIZE} 位隊員</span></div><strong>${metric.deliveredBuckets} 桶</strong></header>
-    <div class="vertical-lane" aria-label="${meta.name}由下往上提水">
-      <div class="finish-platform"><span class="finish-label">終點灌溉區</span><div class="tiny-people">${people}</div></div>
+    <header class="team-board-header"><div><h3>${meta.name}</h3><span>${teamPlayers(teamId).length} 位隊員，輪流雙桶接力</span></div><strong>${metric.deliveredBuckets} 桶</strong></header>
+    <div class="vertical-lane" aria-label="${meta.name}由下往上雙桶灌溉">
+      <div class="finish-platform ${isPouringAtFinish(teamId) ? "is-being-watered" : ""}"><span class="finish-label">終點灌溉區</span><div class="watering-rain" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><div class="tiny-people">${people}</div></div>
       <div class="growth-meter"><span style="height:${metric.progress}%"></span></div>
-      <div class="runner-group">${runners}</div>
-      <div class="water-well"><span>取水處</span></div>
+      <div class="runner-group">${relayMarkup(teamId)}</div>
+      <div class="water-well"><span>取水起點</span><div class="starting-crowd" aria-label="${meta.name}起點隊員">${crowdMarkup(teamId)}</div></div>
     </div>
-    <footer class="team-board-footer"><span>提水 ${metric.units} 次</span><strong>長大 ${metric.growthTotal} / ${metric.maxGrowth}</strong></footer>
+    <footer class="team-board-footer"><span>提水 ${metric.units} 次</span><strong>成長水分 ${metric.progress}%</strong></footer>
   </article>`;
 }
 
 function statusCopy() {
   const seconds = game.countdownEndsAt ? Math.max(0, Math.ceil((game.countdownEndsAt - Date.now()) / 1000)) : 0;
-  if (game.status === "countdown") return { title: `${seconds} 秒後開始`, copy: "五位隊員準備提水，讓終點小人長大。" };
-  if (game.status === "running") return { title: "全力提水中", copy: "每提滿一桶，就輪流灌溉一位小人。" };
+  if (game.status === "countdown") return { title: `${seconds} 秒後開始`, copy: "各隊隊員在取水起點準備雙桶接力。" };
+  if (game.status === "running") return { title: "全力提水中", copy: "每提滿一桶，就派一位隊員雙手提桶前往灌溉。" };
   if (game.status === "finished") return { title: `${TEAM_META[game.winner]?.name || "本回合"}獲勝`, copy: "最先讓五位小人全部長大。" };
-  return { title: "等待三隊就位", copy: "每隊最多五位隊員，準備由下往上接力提水。" };
+  return { title: "等待三隊就位", copy: "隊員不限人數，分隊後從起點輪流雙桶接力灌溉。" };
 }
 
 function render() {
@@ -132,7 +183,7 @@ function render() {
     elements.bucketCapacity.value = String(game.settings.bucketCapacity); elements.growthStages.value = String(game.settings.growthStages); elements.countdownSeconds.value = String(game.settings.countdownSeconds);
     [elements.bucketCapacity, elements.growthStages, elements.countdownSeconds].forEach((input) => { input.disabled = locked; });
     elements.hostScoreboard.innerHTML = Object.keys(TEAM_META).map(teamBoardMarkup).join("");
-    elements.playerCount.textContent = `${totalPlayers} / ${TEAM_SIZE * Object.keys(TEAM_META).length} 人`;
+    elements.playerCount.textContent = `${totalPlayers} 人`;
     const roster = Object.values(game.players).sort((a, b) => a.joinedAt - b.joinedAt);
     elements.playerRoster.innerHTML = roster.length ? roster.map((player) => `<span class="player-pill" style="--team:${TEAM_META[player.team]?.color || "#687d94"}">${escapeHtml(player.name)}${player.team ? "" : "（待分隊）"}</span>`).join("") : '<span class="empty-roster">尚未有人加入</span>';
   } else {
@@ -158,7 +209,7 @@ function renderPlayerPanel() {
   elements.yourTeamLabel.textContent = TEAM_META[teamId].name; elements.tapCounter.textContent = `${Number(player?.taps || 0)} 次`;
   elements.playerProgress.innerHTML = teamBoardMarkup(teamId); elements.tapButton.disabled = game.status !== "running";
   elements.tapHeading.textContent = game.status === "running" ? "快速打水" : game.status === "finished" ? "本回合結束" : game.status === "countdown" ? `${countdownSeconds} 秒後開始` : "準備提水";
-  elements.tapMessage.textContent = game.status === "running" ? `隊伍已讓 ${metric.growthTotal} 次成長發生，繼續提水。` : game.status === "finished" ? `${TEAM_META[game.winner]?.name || "本回合"}最先完成灌溉。` : game.status === "countdown" ? "倒數中，先把手指放在按鈕上。" : "等待主持人開始。";
+  elements.tapMessage.textContent = game.status === "running" ? `五位小人的成長水分已達 ${metric.progress}%，繼續提水。` : game.status === "finished" ? `${TEAM_META[game.winner]?.name || "本回合"}最先完成灌溉。` : game.status === "countdown" ? "倒數中，先把手指放在按鈕上。" : "等待主持人開始。";
 }
 
 function writeLocalState(next) { game = normalizeState(next); localStorage.setItem(localKey, JSON.stringify(game)); backend.channel?.postMessage(game); render(); }
@@ -173,12 +224,9 @@ async function joinGame(event) {
   if (!name) { elements.playerName.focus(); return; }
   const player = { id: `p_${crypto.randomUUID?.() || `${Date.now()}_${Math.random().toString(36).slice(2)}`}`, name, team: null };
   try {
-    let full = false;
     await mutateGame((state) => {
-      if (Object.keys(state.players).length >= TEAM_SIZE * Object.keys(TEAM_META).length) { full = true; return; }
       state.players[player.id] = { name: player.name, team: player.team, taps: 0, joinedAt: Date.now() };
     });
-    if (full) { elements.joinError.textContent = "三隊名額皆已滿，無法再加入。"; return; }
     saveCurrentPlayer(player); render();
   } catch (error) { showConnectionProblem(error); }
 }
@@ -186,8 +234,16 @@ async function joinGame(event) {
 async function sendTap() {
   if (!currentPlayer || game.status !== "running") return;
   try {
-    if (backend.type === "firebase") { await firebaseApi.update(firebaseApi.roomRef, { [`teams/${currentPlayer.team}/waterUnits`]: firebaseApi.increment(1), [`players/${currentPlayer.id}/taps`]: firebaseApi.increment(1) }); return; }
-    await mutateGame((state) => { if (state.status !== "running") return; state.teams[currentPlayer.team].waterUnits += 1; if (state.players[currentPlayer.id]) state.players[currentPlayer.id].taps += 1; });
+    await mutateGame((state) => {
+      const player = state.players[currentPlayer.id];
+      if (state.status !== "running" || !player?.team) return;
+      const team = state.teams[player.team];
+      const previousBuckets = Math.floor(team.waterUnits / state.settings.bucketCapacity);
+      team.waterUnits += 1;
+      const deliveredBuckets = Math.floor(team.waterUnits / state.settings.bucketCapacity);
+      if (deliveredBuckets > previousBuckets) { team.deliveryIndex += 1; team.lastDeliveryAt = Date.now(); }
+      player.taps += 1;
+    });
   } catch (error) { showConnectionProblem(error); }
 }
 
@@ -199,7 +255,7 @@ async function startOrResetRound() {
 }
 
 async function prepareNextRound() {
-  await mutateGame((state) => { state.round += 1; state.status = "lobby"; state.countdownEndsAt = null; state.startedAt = null; state.finishedAt = null; state.winner = null; Object.values(state.teams).forEach((team) => { team.waterUnits = 0; }); Object.values(state.players).forEach((player) => { player.taps = 0; }); });
+  await mutateGame((state) => { state.round += 1; state.status = "lobby"; state.countdownEndsAt = null; state.startedAt = null; state.finishedAt = null; state.winner = null; Object.values(state.teams).forEach((team) => { team.waterUnits = 0; team.deliveryIndex = -1; team.lastDeliveryAt = 0; }); Object.values(state.players).forEach((player) => { player.taps = 0; }); });
 }
 
 async function autoAssignTeams() {
@@ -227,7 +283,7 @@ async function reconcileGameClock() {
   if (game.status === "countdown" && Date.now() >= game.countdownEndsAt) await mutateGame((state) => { if (state.status === "countdown" && Date.now() >= state.countdownEndsAt) { state.status = "running"; state.startedAt = Date.now(); } });
   if (game.status === "running") {
     const ready = Object.keys(TEAM_META).filter((teamId) => teamMetrics(teamId).growthTotal >= teamMetrics(teamId).maxGrowth);
-    if (ready.length) await mutateGame((state) => { if (state.status !== "running") return; const winners = Object.keys(TEAM_META).filter((teamId) => Math.min(Math.floor(state.teams[teamId].waterUnits / state.settings.bucketCapacity), TEAM_SIZE * state.settings.growthStages) >= TEAM_SIZE * state.settings.growthStages); if (winners.length) { winners.sort((left, right) => state.teams[right].waterUnits - state.teams[left].waterUnits || left.localeCompare(right)); state.status = "finished"; state.winner = winners[0]; state.finishedAt = Date.now(); } });
+    if (ready.length) await mutateGame((state) => { if (state.status !== "running") return; const winners = Object.keys(TEAM_META).filter((teamId) => Math.min(Math.floor(state.teams[teamId].waterUnits / state.settings.bucketCapacity), FINISH_PERSON_COUNT * state.settings.growthStages) >= FINISH_PERSON_COUNT * state.settings.growthStages); if (winners.length) { winners.sort((left, right) => state.teams[right].waterUnits - state.teams[left].waterUnits || left.localeCompare(right)); state.status = "finished"; state.winner = winners[0]; state.finishedAt = Date.now(); } });
   }
   render();
 }
@@ -252,7 +308,7 @@ async function connectFirebase() {
   try {
     const [{ initializeApp, getApps }, { getAuth, signInAnonymously }, { getDatabase, ref, onValue, runTransaction, update, increment }] = await Promise.all([import("https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js"), import("https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js"), import("https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js")]);
     const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig); await signInAnonymously(getAuth(app)); const roomRef = ref(getDatabase(app), gamePath()); firebaseApi = { roomRef, runTransaction, update, increment };
-    await runTransaction(roomRef, (current) => current?.version === 3 ? current : createDefaultState()); onValue(roomRef, (snapshot) => { game = normalizeState(snapshot.val()); render(); }, showConnectionProblem); backend = { type: "firebase", channel: null }; return true;
+    await runTransaction(roomRef, (current) => current?.version >= 3 ? normalizeState(current) : createDefaultState()); onValue(roomRef, (snapshot) => { game = normalizeState(snapshot.val()); render(); }, showConnectionProblem); backend = { type: "firebase", channel: null }; return true;
   } catch (error) { console.warn("Firebase 無法使用，切換為示範模式。", error); return false; }
 }
 
