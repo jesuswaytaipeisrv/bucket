@@ -109,6 +109,10 @@
 - 已於本機房間 `RETURNQA2026` 驗證 QR Code 成功產生，且「複製連線網址」可回報成功狀態。
 - 已同步至 GitHub `main`，GitHub Pages 將自動重新建置主持台 QR Code。
 
+### 2026-06-20：README 線上遊戲入口
+
+- 在 GitHub README 新增公開遊戲、主持台與玩家頁連結，預設使用房間 `WATER2026`。
+
 ### 2026-06-19 至 2026-06-20：GitHub 發布
 
 - 本機 Git 倉庫已初始化，首個遊戲提交為 `4f020a5`（`Initial three-team water growth relay game`）。
