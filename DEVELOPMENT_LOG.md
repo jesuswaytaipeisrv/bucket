@@ -99,6 +99,15 @@
 - 快取版本更新為 `styles.css?v=20260620-7`。
 - 已於本機房間 `RETURNQA2026` 驗證 10% 成長狀態，並同步至 GitHub `main` 供 GitHub Pages 重新建置。
 
+### 2026-06-20：主持台玩家加入 QR Code
+
+- 主持台新增「掃描加入」區塊，自動將目前網站來源與房間碼組成玩家網址並生成 QR Code。
+- 新增「複製連線網址」按鈕，方便透過訊息軟體傳送給玩家。
+- 本機網址與示範模式會顯示警示，避免誤以為 QR Code 已具備跨手機同步能力；正式活動仍需部署 HTTPS 網址並完成 Firebase Realtime Database 設定。
+- QR Code 由隨專案發布的 MIT 開源 `qrcodejs` 函式庫產生，不傳送玩家網址給 QR Code 產生服務，無額外付費或 CDN 依賴。
+- 快取版本更新為 `styles.css?v=20260620-8` 與 `app.js?v=20260620-8`。
+- 已於本機房間 `RETURNQA2026` 驗證 QR Code 成功產生，且「複製連線網址」可回報成功狀態。
+
 ### 2026-06-19 至 2026-06-20：GitHub 發布
 
 - 本機 Git 倉庫已初始化，首個遊戲提交為 `4f020a5`（`Initial three-team water growth relay game`）。

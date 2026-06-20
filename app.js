@@ -19,12 +19,16 @@ let game = createDefaultState();
 let currentPlayer = readCurrentPlayer();
 let backend = { type: "demo", channel: null };
 let firebaseApi = null;
+let renderedQrUrl = "";
+let shareFeedback = "";
+let shareFeedbackTimer = null;
 
 const elements = {
   connectionBadge: document.querySelector("#connection-badge"), roomLabel: document.querySelector("#room-label"),
   hostView: document.querySelector("#host-view"), playerView: document.querySelector("#player-view"),
   hostHeading: document.querySelector("#host-heading"), hostCopy: document.querySelector("#host-copy"),
   startButton: document.querySelector("#start-button"), autoAssignButton: document.querySelector("#auto-assign-button"), resetButton: document.querySelector("#reset-button"),
+  playerJoinLink: document.querySelector("#player-join-link"), copyPlayerLinkButton: document.querySelector("#copy-player-link-button"), joinShareNote: document.querySelector("#join-share-note"), joinQrCode: document.querySelector("#join-qr-code"),
   bucketCapacity: document.querySelector("#bucket-capacity"), growthStages: document.querySelector("#growth-stages"), countdownSeconds: document.querySelector("#countdown-seconds"),
   hostScoreboard: document.querySelector("#host-scoreboard"), playerCount: document.querySelector("#player-count"), playerRoster: document.querySelector("#player-roster"),
   joinPanel: document.querySelector("#join-panel"), tapPanel: document.querySelector("#tap-panel"), joinForm: document.querySelector("#join-form"),
@@ -88,6 +92,55 @@ function readCurrentPlayer() { try { const player = JSON.parse(sessionStorage.ge
 function saveCurrentPlayer(player) { currentPlayer = player; sessionStorage.setItem(playerKey, JSON.stringify(player)); }
 function gamePath() { return `${STORAGE_PREFIX}/rooms/${roomCode}`; }
 function teamPlayers(teamId) { return Object.values(game.players).filter((player) => player.team === teamId); }
+
+function playerJoinUrl() {
+  const url = new URL(window.location.href);
+  url.searchParams.set("view", "play");
+  url.searchParams.set("room", roomCode);
+  return url.toString();
+}
+
+function shareMessage() {
+  const localHost = ["127.0.0.1", "localhost", "::1"].includes(window.location.hostname);
+  if (localHost) return { text: "本機網址只供目前電腦測試；正式活動請使用部署 HTTPS 網址並完成 Firebase 設定。", warning: true };
+  if (backend.type !== "firebase") return { text: "目前是示範模式：QR 可開啟頁面，但多支手機不會即時同步；請先設定 Firebase。", warning: true };
+  return { text: "即時多人模式已啟用，掃描後即可加入此房間。", warning: false };
+}
+
+function renderJoinQrCode() {
+  const joinUrl = playerJoinUrl();
+  elements.playerJoinLink.textContent = joinUrl;
+  const message = shareFeedback ? { text: shareFeedback, warning: false } : shareMessage();
+  elements.joinShareNote.textContent = message.text;
+  elements.joinShareNote.className = `share-note${message.warning ? " is-warning" : ""}`;
+  if (renderedQrUrl === joinUrl) return;
+  if (typeof window.QRCode !== "function") { elements.joinShareNote.textContent = "QR Code 載入中，請稍候。"; return; }
+  renderedQrUrl = joinUrl;
+  try {
+    elements.joinQrCode.replaceChildren();
+    new window.QRCode(elements.joinQrCode, { text: joinUrl, width: 160, height: 160, colorDark: "#102a43", colorLight: "#ffffff", correctLevel: window.QRCode.CorrectLevel.M });
+  } catch (error) {
+    renderedQrUrl = "";
+    elements.joinShareNote.textContent = "QR Code 無法產生，請使用上方連線網址。";
+    elements.joinShareNote.className = "share-note is-warning";
+  }
+}
+
+async function copyPlayerJoinLink() {
+  const joinUrl = playerJoinUrl();
+  try {
+    await navigator.clipboard.writeText(joinUrl);
+  } catch {
+    const temporaryInput = document.createElement("textarea");
+    temporaryInput.value = joinUrl; temporaryInput.setAttribute("readonly", "");
+    temporaryInput.style.position = "fixed"; temporaryInput.style.opacity = "0";
+    document.body.append(temporaryInput); temporaryInput.select(); document.execCommand("copy"); temporaryInput.remove();
+  }
+  shareFeedback = "玩家連線網址已複製。";
+  window.clearTimeout(shareFeedbackTimer);
+  shareFeedbackTimer = window.setTimeout(() => { shareFeedback = ""; renderJoinQrCode(); }, 2200);
+  renderJoinQrCode();
+}
 
 function teamMetrics(teamId) {
   const units = game.teams[teamId].waterUnits;
@@ -207,6 +260,7 @@ function render() {
     elements.playerCount.textContent = `${totalPlayers} 人`;
     const roster = Object.values(game.players).sort((a, b) => a.joinedAt - b.joinedAt);
     elements.playerRoster.innerHTML = roster.length ? roster.map((player) => `<span class="player-pill" style="--team:${TEAM_META[player.team]?.color || "#687d94"}">${escapeHtml(player.name)}${player.team ? "" : "（待分隊）"}</span>`).join("") : '<span class="empty-roster">尚未有人加入</span>';
+    renderJoinQrCode();
   } else {
     const joined = Boolean(currentPlayer && game.players[currentPlayer.id]);
     elements.joinPanel.hidden = joined; elements.tapPanel.hidden = !joined;
@@ -332,6 +386,7 @@ function bindEvents() {
   elements.tapButton.addEventListener("click", sendTap);
   elements.changeTeamButton.addEventListener("click", async () => { if (!currentPlayer) return; const id = currentPlayer.id; try { await mutateGame((state) => { delete state.players[id]; }); sessionStorage.removeItem(playerKey); currentPlayer = null; render(); } catch (error) { showConnectionProblem(error); } });
   elements.startButton.addEventListener("click", startOrResetRound); elements.autoAssignButton.addEventListener("click", autoAssignTeams); elements.winnerNextButton.addEventListener("click", startNextRoundFromResult);
+  elements.copyPlayerLinkButton.addEventListener("click", () => { copyPlayerJoinLink().catch(showConnectionProblem); });
   elements.resetButton.addEventListener("click", () => { if (window.confirm("要重設本回合的提水進度嗎？已加入的玩家會保留。")) prepareNextRound().catch(showConnectionProblem); });
   [elements.bucketCapacity, elements.growthStages, elements.countdownSeconds].forEach((input) => input.addEventListener("change", updateSetting));
 }

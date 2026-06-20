@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#087e8b">
     <title>提水長大賽</title>
-    <link rel="stylesheet" href="styles.css?v=20260620-7">
+    <link rel="stylesheet" href="styles.css?v=20260620-8">
   </head>
   <body>
     <main class="app-shell">
@@ -47,6 +47,17 @@
             <input id="countdown-seconds" type="number" min="1" max="20" value="5" inputmode="numeric">
             <span>秒</span>
           </label>
+        </section>
+
+        <section class="join-share" aria-label="玩家加入 QR Code">
+          <div class="join-share-copy">
+            <p class="section-label">玩家加入</p>
+            <h2>掃描加入</h2>
+            <code id="player-join-link" class="player-join-link"></code>
+            <button id="copy-player-link-button" class="secondary-button" type="button">複製連線網址</button>
+            <p id="join-share-note" class="share-note" aria-live="polite"></p>
+          </div>
+          <div class="qr-code-frame"><div id="join-qr-code" class="qr-code-canvas" role="img" aria-label="玩家加入 QR Code"></div></div>
         </section>
 
         <section id="host-scoreboard" class="scoreboard three-team-board" aria-label="三隊提水進度"></section>
@@ -98,6 +109,7 @@
         </div>
       </section>
     </main>
-    <script type="module" src="app.js?v=20260620-6"></script>
+    <script defer src="vendor/qrcode.min.js?v=1.0.0"></script>
+    <script type="module" src="app.js?v=20260620-8"></script>
   </body>
 </html>
