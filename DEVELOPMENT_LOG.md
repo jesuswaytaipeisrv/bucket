@@ -59,7 +59,7 @@
 - 目標遠端為 `https://github.com/jesuswaytaipeisrv/bucket.git`。
 - 終端 GitHub 推送未取得回應，改由已登入的 GitHub 網頁工作階段將專案檔逐一提交至 `main`。
 - 已上傳 README、使用說明、HTML、CSS、JavaScript、Firebase 設定範本、資料庫規則與 `.gitignore`；最後以 GitHub 檔案清單核對。
-- 尚未啟用 GitHub Pages，因此此提交完成的是原始碼發布，不是公開遊戲網址發布。
+- GitHub Pages 已設定為從 `main` 根目錄建置，公開網址為 `https://jesuswaytaipeisrv.github.io/bucket/`；首次建置完成前可能短暫顯示 404。
 
 ### 尚待人工瀏覽器驗證
 
