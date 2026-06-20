@@ -2,6 +2,7 @@ import { firebaseConfig } from "./firebase-config.js";
 
 const FINISH_PERSON_COUNT = 5;
 const RELAY_TIMING = { outbound: 1600, pour: 850, return: 2200 };
+const RELAY_CYCLE_MS = RELAY_TIMING.outbound + RELAY_TIMING.pour + RELAY_TIMING.return;
 const TEAM_META = {
   coral: { name: "晨露隊", color: "#e76f51", dark: "#b74733" },
   river: { name: "河浪隊", color: "#277da1", dark: "#15546f" },
@@ -35,9 +36,9 @@ const elements = {
 
 function createDefaultState() {
   return {
-    version: 4, round: 1, status: "lobby", countdownEndsAt: null, startedAt: null, finishedAt: null, winner: null,
+    version: 5, round: 1, status: "lobby", countdownEndsAt: null, startedAt: null, finishedAt: null, finishAnimationEndsAt: null, winner: null,
     settings: { bucketCapacity: 24, growthStages: 4, countdownSeconds: 5 },
-    teams: Object.fromEntries(Object.keys(TEAM_META).map((teamId) => [teamId, { waterUnits: 0, deliveryIndex: -1, lastDeliveryAt: 0 }])), players: {}
+    teams: Object.fromEntries(Object.keys(TEAM_META).map((teamId) => [teamId, { waterUnits: 0, deliveryIndex: -1, lastDeliveryAt: 0, deliveryEvents: [] }])), players: {}
   };
 }
 
@@ -46,16 +47,26 @@ function clampNumber(value, fallback, min, max) {
   return Number.isFinite(number) ? Math.min(max, Math.max(min, Math.round(number))) : fallback;
 }
 
+function normalizeDeliveryEvents(events, deliveryIndex, lastDeliveryAt) {
+  const normalized = Array.isArray(events) ? events.map((event) => ({
+    runnerIndex: clampNumber(event?.runnerIndex, -1, -1, 1000000),
+    startsAt: clampNumber(event?.startsAt, 0, 0, Number.MAX_SAFE_INTEGER)
+  })).filter((event) => event.runnerIndex >= 0 && event.startsAt > 0) : [];
+  if (!normalized.length && deliveryIndex >= 0 && lastDeliveryAt > 0) normalized.push({ runnerIndex: deliveryIndex, startsAt: lastDeliveryAt });
+  return normalized.sort((left, right) => left.startsAt - right.startsAt);
+}
+
 function normalizeState(value) {
-  if (!value || ![3, 4].includes(value.version)) return createDefaultState();
+  if (!value || ![3, 4, 5].includes(value.version)) return createDefaultState();
   const base = createDefaultState();
   const source = value;
   const players = Object.fromEntries(Object.entries(source.players || {}).filter(([, player]) => player).map(([id, player]) => [id, {
     name: String(player.name || "隊員").slice(0, 16), team: TEAM_META[player.team] ? player.team : null, taps: clampNumber(player.taps, 0, 0, 1000000), joinedAt: clampNumber(player.joinedAt, 0, 0, Number.MAX_SAFE_INTEGER)
   }]));
   return {
-    ...base, ...source, version: 4, round: clampNumber(source.round, 1, 1, 100000),
-    status: ["lobby", "countdown", "running", "finished"].includes(source.status) ? source.status : "lobby",
+    ...base, ...source, version: 5, round: clampNumber(source.round, 1, 1, 100000),
+    status: ["lobby", "countdown", "running", "finishing", "finished"].includes(source.status) ? source.status : "lobby",
+    finishAnimationEndsAt: clampNumber(source.finishAnimationEndsAt, 0, 0, Number.MAX_SAFE_INTEGER) || null,
     settings: {
       bucketCapacity: clampNumber(source.settings?.bucketCapacity, 24, 5, 100),
       growthStages: clampNumber(source.settings?.growthStages, 4, 1, 8),
@@ -64,7 +75,8 @@ function normalizeState(value) {
     teams: Object.fromEntries(Object.keys(TEAM_META).map((teamId) => [teamId, {
       waterUnits: clampNumber(source.teams?.[teamId]?.waterUnits, 0, 0, 1000000),
       deliveryIndex: clampNumber(source.teams?.[teamId]?.deliveryIndex, -1, -1, 1000000),
-      lastDeliveryAt: clampNumber(source.teams?.[teamId]?.lastDeliveryAt, 0, 0, Number.MAX_SAFE_INTEGER)
+      lastDeliveryAt: clampNumber(source.teams?.[teamId]?.lastDeliveryAt, 0, 0, Number.MAX_SAFE_INTEGER),
+      deliveryEvents: normalizeDeliveryEvents(source.teams?.[teamId]?.deliveryEvents, clampNumber(source.teams?.[teamId]?.deliveryIndex, -1, -1, 1000000), clampNumber(source.teams?.[teamId]?.lastDeliveryAt, 0, 0, Number.MAX_SAFE_INTEGER))
     }])),
     players, winner: TEAM_META[source.winner] ? source.winner : null
   };
@@ -109,25 +121,32 @@ function runnerMarkup(role, progress, pouring, label) {
   </div>`;
 }
 
+function relayIsActive() { return game.status === "running" || game.status === "finishing"; }
+
 function isPouringAtFinish(teamId) {
-  const team = game.teams[teamId];
-  const elapsed = game.status === "running" && team.lastDeliveryAt ? Date.now() - team.lastDeliveryAt : -1;
-  return elapsed >= RELAY_TIMING.outbound && elapsed < RELAY_TIMING.outbound + RELAY_TIMING.pour;
+  if (!relayIsActive()) return false;
+  const now = Date.now();
+  return game.teams[teamId].deliveryEvents.some((event) => {
+    const elapsed = now - event.startsAt;
+    return elapsed >= RELAY_TIMING.outbound && elapsed < RELAY_TIMING.outbound + RELAY_TIMING.pour;
+  });
 }
 
 function relayMarkup(teamId) {
   const team = game.teams[teamId];
   const members = teamPlayers(teamId);
-  const totalDuration = RELAY_TIMING.outbound + RELAY_TIMING.pour + RELAY_TIMING.return;
-  const elapsed = game.status === "running" && team.lastDeliveryAt ? Date.now() - team.lastDeliveryAt : totalDuration;
-  if (!members.length || elapsed < 0 || elapsed >= totalDuration) return "";
-  const runnerIndex = team.deliveryIndex >= 0 ? team.deliveryIndex % members.length : 0;
-  const currentName = members[runnerIndex]?.name || "隊員";
-  if (elapsed < RELAY_TIMING.outbound) return runnerMarkup("is-outbound", elapsed / RELAY_TIMING.outbound, false, `${currentName}正提著兩桶水前往灌溉`);
-  if (elapsed < RELAY_TIMING.outbound + RELAY_TIMING.pour) return runnerMarkup("is-pouring", 1, true, `${currentName}正在灌溉`);
-  const returnProgress = (elapsed - RELAY_TIMING.outbound - RELAY_TIMING.pour) / RELAY_TIMING.return;
-  const nextIndex = (runnerIndex + 1) % members.length;
-  return `${runnerMarkup("is-returning", 1 - returnProgress, false, `${currentName}正提著空桶返回起點`)}${runnerMarkup("is-next-outbound", Math.min(returnProgress * 1.18, 1), false, `${members[nextIndex]?.name || "下一位隊員"}接力出發`)}`;
+  if (!members.length || !relayIsActive()) return "";
+  const now = Date.now();
+  return team.deliveryEvents.map((event) => {
+    const elapsed = now - event.startsAt;
+    if (elapsed < 0 || elapsed >= RELAY_CYCLE_MS) return "";
+    const runnerIndex = event.runnerIndex % members.length;
+    const currentName = members[runnerIndex]?.name || "隊員";
+    if (elapsed < RELAY_TIMING.outbound) return runnerMarkup("is-outbound", elapsed / RELAY_TIMING.outbound, false, `${currentName}正提著兩桶水前往灌溉`);
+    if (elapsed < RELAY_TIMING.outbound + RELAY_TIMING.pour) return runnerMarkup("is-pouring", 1, true, `${currentName}正在灌溉`);
+    const returnProgress = (elapsed - RELAY_TIMING.outbound - RELAY_TIMING.pour) / RELAY_TIMING.return;
+    return runnerMarkup("is-returning", 1 - returnProgress, false, `${currentName}正提著空桶返回起點`);
+  }).join("");
 }
 
 function crowdMarkup(teamId) {
@@ -162,6 +181,7 @@ function statusCopy() {
   const seconds = game.countdownEndsAt ? Math.max(0, Math.ceil((game.countdownEndsAt - Date.now()) / 1000)) : 0;
   if (game.status === "countdown") return { title: `${seconds} 秒後開始`, copy: "各隊隊員在取水起點準備雙桶接力。" };
   if (game.status === "running") return { title: "全力提水中", copy: "每提滿一桶，就派一位隊員雙手提桶前往灌溉。" };
+  if (game.status === "finishing") return { title: "最後一趟回程中", copy: "完成灌溉的隊員正在帶著空桶返回起點。" };
   if (game.status === "finished") return { title: `${TEAM_META[game.winner]?.name || "本回合"}獲勝`, copy: "最先讓五位小人全部長大。" };
   return { title: "等待三隊就位", copy: "隊員不限人數，分隊後從起點輪流雙桶接力灌溉。" };
 }
@@ -178,8 +198,8 @@ function render() {
     const locked = game.status !== "lobby";
     const unassignedCount = Object.values(game.players).filter((player) => !player.team).length;
     elements.hostHeading.textContent = copy.title; elements.hostCopy.textContent = unassignedCount ? `目前有 ${unassignedCount} 人待分隊，請先按「自動分隊」。` : copy.copy;
-    elements.startButton.textContent = game.status === "lobby" ? "開始倒數" : game.status === "finished" ? "下一輪" : game.status === "countdown" ? "倒數中" : "進行中";
-    elements.startButton.disabled = game.status === "countdown" || game.status === "running" || unassignedCount > 0 || totalPlayers === 0;
+    elements.startButton.textContent = game.status === "lobby" ? "開始倒數" : game.status === "finished" ? "下一輪" : game.status === "countdown" ? "倒數中" : game.status === "finishing" ? "回程中" : "進行中";
+    elements.startButton.disabled = game.status === "countdown" || game.status === "running" || game.status === "finishing" || unassignedCount > 0 || totalPlayers === 0;
     elements.autoAssignButton.disabled = locked || totalPlayers === 0;
     elements.bucketCapacity.value = String(game.settings.bucketCapacity); elements.growthStages.value = String(game.settings.growthStages); elements.countdownSeconds.value = String(game.settings.countdownSeconds);
     [elements.bucketCapacity, elements.growthStages, elements.countdownSeconds].forEach((input) => { input.disabled = locked; });
@@ -209,14 +229,23 @@ function renderPlayerPanel() {
   const countdownSeconds = game.countdownEndsAt ? Math.max(0, Math.ceil((game.countdownEndsAt - Date.now()) / 1000)) : 0;
   elements.yourTeamLabel.textContent = TEAM_META[teamId].name; elements.tapCounter.textContent = `${Number(player?.taps || 0)} 次`;
   elements.playerProgress.innerHTML = teamBoardMarkup(teamId); elements.tapButton.disabled = game.status !== "running";
-  elements.tapHeading.textContent = game.status === "running" ? "快速打水" : game.status === "finished" ? "本回合結束" : game.status === "countdown" ? `${countdownSeconds} 秒後開始` : "準備提水";
-  elements.tapMessage.textContent = game.status === "running" ? `五位小人的成長水分已達 ${metric.progress}%，繼續提水。` : game.status === "finished" ? `${TEAM_META[game.winner]?.name || "本回合"}最先完成灌溉。` : game.status === "countdown" ? "倒數中，先把手指放在按鈕上。" : "等待主持人開始。";
+  elements.tapHeading.textContent = game.status === "running" ? "快速打水" : game.status === "finishing" ? "最後一趟回程中" : game.status === "finished" ? "本回合結束" : game.status === "countdown" ? `${countdownSeconds} 秒後開始` : "準備提水";
+  elements.tapMessage.textContent = game.status === "running" ? `五位小人的成長水分已達 ${metric.progress}%，繼續提水。` : game.status === "finishing" ? "隊員正在帶著空桶返回起點，請等待結算。" : game.status === "finished" ? `${TEAM_META[game.winner]?.name || "本回合"}最先完成灌溉。` : game.status === "countdown" ? "倒數中，先把手指放在按鈕上。" : "等待主持人開始。";
 }
 
 function writeLocalState(next) { game = normalizeState(next); localStorage.setItem(localKey, JSON.stringify(game)); backend.channel?.postMessage(game); render(); }
 async function mutateGame(mutator) {
   if (backend.type === "firebase") { await firebaseApi.runTransaction(firebaseApi.roomRef, (current) => { const next = normalizeState(current); mutator(next); return next; }); return; }
   const next = clone(game); mutator(next); writeLocalState(next);
+}
+
+function queueDelivery(team, timestamp) {
+  const activeOrQueued = team.deliveryEvents.filter((event) => event.startsAt + RELAY_CYCLE_MS > timestamp);
+  const previous = activeOrQueued[activeOrQueued.length - 1];
+  team.deliveryIndex += 1;
+  const startsAt = Math.max(timestamp, previous ? previous.startsAt + RELAY_TIMING.outbound + RELAY_TIMING.pour : 0);
+  team.deliveryEvents = [...activeOrQueued, { runnerIndex: team.deliveryIndex, startsAt }];
+  team.lastDeliveryAt = startsAt;
 }
 
 async function joinGame(event) {
@@ -242,7 +271,7 @@ async function sendTap() {
       const previousBuckets = Math.floor(team.waterUnits / state.settings.bucketCapacity);
       team.waterUnits += 1;
       const deliveredBuckets = Math.floor(team.waterUnits / state.settings.bucketCapacity);
-      if (deliveredBuckets > previousBuckets) { team.deliveryIndex += 1; team.lastDeliveryAt = Date.now(); }
+      if (deliveredBuckets > previousBuckets) queueDelivery(team, Date.now());
       player.taps += 1;
     });
   } catch (error) { showConnectionProblem(error); }
@@ -256,7 +285,7 @@ async function startOrResetRound() {
 }
 
 async function prepareNextRound() {
-  await mutateGame((state) => { state.round += 1; state.status = "lobby"; state.countdownEndsAt = null; state.startedAt = null; state.finishedAt = null; state.winner = null; Object.values(state.teams).forEach((team) => { team.waterUnits = 0; team.deliveryIndex = -1; team.lastDeliveryAt = 0; }); Object.values(state.players).forEach((player) => { player.taps = 0; }); });
+  await mutateGame((state) => { state.round += 1; state.status = "lobby"; state.countdownEndsAt = null; state.startedAt = null; state.finishedAt = null; state.finishAnimationEndsAt = null; state.winner = null; Object.values(state.teams).forEach((team) => { team.waterUnits = 0; team.deliveryIndex = -1; team.lastDeliveryAt = 0; team.deliveryEvents = []; }); Object.values(state.players).forEach((player) => { player.taps = 0; }); });
 }
 
 async function autoAssignTeams() {
@@ -284,8 +313,17 @@ async function reconcileGameClock() {
   if (game.status === "countdown" && Date.now() >= game.countdownEndsAt) await mutateGame((state) => { if (state.status === "countdown" && Date.now() >= state.countdownEndsAt) { state.status = "running"; state.startedAt = Date.now(); } });
   if (game.status === "running") {
     const ready = Object.keys(TEAM_META).filter((teamId) => teamMetrics(teamId).growthTotal >= teamMetrics(teamId).maxGrowth);
-    if (ready.length) await mutateGame((state) => { if (state.status !== "running") return; const winners = Object.keys(TEAM_META).filter((teamId) => Math.min(Math.floor(state.teams[teamId].waterUnits / state.settings.bucketCapacity), FINISH_PERSON_COUNT * state.settings.growthStages) >= FINISH_PERSON_COUNT * state.settings.growthStages); if (winners.length) { winners.sort((left, right) => state.teams[right].waterUnits - state.teams[left].waterUnits || left.localeCompare(right)); state.status = "finished"; state.winner = winners[0]; state.finishedAt = Date.now(); } });
+    if (ready.length) await mutateGame((state) => {
+      if (state.status !== "running") return;
+      const winners = Object.keys(TEAM_META).filter((teamId) => Math.min(Math.floor(state.teams[teamId].waterUnits / state.settings.bucketCapacity), FINISH_PERSON_COUNT * state.settings.growthStages) >= FINISH_PERSON_COUNT * state.settings.growthStages);
+      if (winners.length) {
+        winners.sort((left, right) => state.teams[right].waterUnits - state.teams[left].waterUnits || left.localeCompare(right));
+        const lastReturnAt = Math.max(Date.now(), ...Object.values(state.teams).flatMap((team) => team.deliveryEvents.map((event) => event.startsAt + RELAY_CYCLE_MS)));
+        state.status = "finishing"; state.winner = winners[0]; state.finishAnimationEndsAt = lastReturnAt;
+      }
+    });
   }
+  if (game.status === "finishing" && Date.now() >= game.finishAnimationEndsAt) await mutateGame((state) => { if (state.status === "finishing" && Date.now() >= state.finishAnimationEndsAt) { state.status = "finished"; state.finishedAt = Date.now(); state.finishAnimationEndsAt = null; } });
   render();
 }
 
