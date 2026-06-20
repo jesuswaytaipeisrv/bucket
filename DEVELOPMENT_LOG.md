@@ -53,11 +53,13 @@
 - 快取版本更新為 `styles.css?v=20260619-6` 與 `app.js?v=20260619-6`。
 - 已以本機測試玩家驗證：玩家加入後出現在待分隊名單，主持人按「自動分隊」後被分派到晨露隊並解除開始按鈕鎖定；測試玩家已移除，房間目前為空白狀態。
 
-### 2026-06-19：GitHub 發布準備
+### 2026-06-19 至 2026-06-20：GitHub 發布
 
 - 本機 Git 倉庫已初始化，首個遊戲提交為 `4f020a5`（`Initial three-team water growth relay game`）。
 - 目標遠端為 `https://github.com/jesuswaytaipeisrv/bucket.git`。
-- 目前終端 GitHub 推送未取得回應，尚未宣稱已發布；待確認 GitHub 驗證通道後再推送與發布 Pages。
+- 終端 GitHub 推送未取得回應，改由已登入的 GitHub 網頁工作階段將專案檔逐一提交至 `main`。
+- 已上傳 README、使用說明、HTML、CSS、JavaScript、Firebase 設定範本、資料庫規則與 `.gitignore`；最後以 GitHub 檔案清單核對。
+- 尚未啟用 GitHub Pages，因此此提交完成的是原始碼發布，不是公開遊戲網址發布。
 
 ### 尚待人工瀏覽器驗證
 
