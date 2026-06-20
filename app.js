@@ -102,7 +102,7 @@ function teamMetrics(teamId) {
 
 function personMarkup(stage, index, growthStages) {
   const ratio = Math.min(1, stage / growthStages);
-  const scale = 0.42 + ratio * 0.58;
+  const scale = 0.24 + ratio * 0.76;
   const label = ratio >= 1 ? "已長大" : `吸收水分 ${Math.round(ratio * 100)}%`;
   return `<div class="tiny-person ${ratio >= 1 ? "is-grown" : ""}" style="--person-scale:${scale};--person-water:${Math.round(ratio * 100)}%" aria-label="第 ${index + 1} 位小人，${label}">
     <span class="person-hair"></span><span class="person-head"><span class="person-eye eye-left"></span><span class="person-eye eye-right"></span><span class="person-cheek cheek-left"></span><span class="person-cheek cheek-right"></span></span>
