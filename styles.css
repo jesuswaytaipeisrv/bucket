@@ -57,3 +57,11 @@ h2 { margin-bottom: 8px; font-size: clamp(22px, 4.5vw, 31px); line-height: 1.16;
 @keyframes ripple { 0% { transform: scale(0.72); opacity: 0.7; } 100% { transform: scale(1.18); opacity: 0; } } @keyframes heavy-step { from { transform: translateY(0) rotate(-2deg); } to { transform: translateY(3px) rotate(2deg); } } @keyframes splash { from { transform: scale(0.7); opacity: 0.5; } to { transform: scale(1.25); opacity: 1; } } @keyframes water-fall { from { transform: translateY(-5px) rotate(12deg); opacity: 0.55; } to { transform: translateY(10px) rotate(-9deg); opacity: 1; } } @keyframes happy-sprinkle { 0% { transform: scale(var(--person-scale)) scale(0.72) translateY(7px); filter: brightness(0.92); } 58% { transform: scale(var(--person-scale)) scale(1.22) translateY(-7px); filter: brightness(1.26) drop-shadow(0 0 8px rgba(76,201,240,0.9)); } 100% { transform: scale(var(--person-scale)) translateY(-2px); filter: brightness(1.08); } } @keyframes fling-water { from { opacity: 0.55; } to { opacity: 1; filter: brightness(1.18); } }
 @media (max-width: 960px) { .three-team-board { grid-template-columns: 1fr; }.vertical-lane { height: 380px; } }
 @media (max-width: 640px) { .topbar, .host-view, .player-view { padding-right: 16px; padding-left: 16px; }.host-command { align-items: flex-start; }.host-actions { flex-direction: column; }.host-actions .command-button, .icon-button { min-height: 42px; }.icon-button { width: 42px; height: 42px; align-self: end; }.settings-strip { grid-template-columns: 1fr; gap: 8px; }.settings-strip label { grid-template-columns: 1fr 64px auto; }.settings-strip input { width: 64px; }.join-share { grid-template-columns: 1fr; gap: 14px; }.qr-code-frame { width: 166px; min-height: 166px; }.vertical-lane { height: 350px; }.finish-platform { min-height: 92px; }.tiny-people { height: 62px; } }
+
+@media (max-width: 640px) {
+  .tap-panel { gap: 12px; padding-top: 12px; }
+  .tap-button { width: min(72vw, 280px); aspect-ratio: 1 / 0.62; }
+  .tap-button-icon { font-size: clamp(30px, 9vw, 42px); }
+  .tap-button-copy { margin-top: 4px; }
+  .player-progress .vertical-lane { height: 300px; }
+}
