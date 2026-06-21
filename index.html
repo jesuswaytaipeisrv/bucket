@@ -89,13 +89,13 @@
             </div>
             <strong id="tap-counter" class="tap-counter">0 次</strong>
           </div>
-          <div id="player-progress" class="player-progress"></div>
           <div id="tap-message" class="tap-message" aria-live="polite">等待主持人開始</div>
           <button id="tap-button" class="tap-button" type="button" disabled aria-label="打水">
             <span class="tap-button-ripple"></span>
             <span class="tap-button-icon">打水</span>
             <span class="tap-button-copy">快速連點</span>
           </button>
+          <div id="player-progress" class="player-progress"></div>
           <button id="change-team-button" class="text-button" type="button">離開等待名單</button>
         </section>
       </section>
@@ -105,11 +105,11 @@
           <p class="section-label">本回合結果</p>
           <h2 id="winner-title">晨露隊獲勝</h2>
           <p id="winner-copy">最先讓五位小人全部長大。</p>
-          <button id="winner-next-button" class="command-button winner-next-button" type="button" onclick="window.waterGrowthNextRound?.()">下一輪</button>
+          <button id="winner-next-button" class="command-button winner-next-button" type="button">下一輪</button>
         </div>
       </section>
     </main>
     <script defer src="vendor/qrcode.min.js?v=1.0.0"></script>
-    <script type="module" src="app.js?v=20260621-1"></script>
+    <script type="module" src="app.js?v=20260621-4"></script>
   </body>
 </html>

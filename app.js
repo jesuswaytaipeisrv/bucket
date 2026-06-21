@@ -181,7 +181,8 @@ function personMarkup(stage, index, growthStages) {
 
 function runnerMarkup(role, progress, pouring, label) {
   const offset = Math.round(progress * 172);
-  return `<div class="relay-runner ${role} ${pouring ? "is-pouring" : ""}" style="--relay-offset:-${offset}px" aria-label="${label}">
+  const accessibleLabel = escapeHtml(label);
+  return `<div class="relay-runner ${role} ${pouring ? "is-pouring" : ""}" style="--relay-offset:-${offset}px" aria-label="${accessibleLabel}">
     <span class="runner-hair"></span><span class="runner-head"><span class="runner-eye eye-left"></span><span class="runner-eye eye-right"></span><span class="runner-cheek cheek-left"></span><span class="runner-cheek cheek-right"></span></span><span class="runner-body"><span class="runner-badge">♥</span></span><span class="runner-legs"></span>
     <span class="runner-arm runner-arm-left"></span><span class="runner-arm runner-arm-right"></span>
     <span class="runner-bucket runner-bucket-left"><i></i></span><span class="runner-bucket runner-bucket-right"><i></i></span>
@@ -318,6 +319,14 @@ function queueDelivery(team, timestamp) {
   team.lastDeliveryAt = startsAt;
 }
 
+function queuePendingDeliveries(state, timestamp) {
+  const maxDeliveries = FINISH_PERSON_COUNT * state.settings.growthStages;
+  Object.values(state.teams).forEach((team) => {
+    const deliveredBuckets = Math.min(Math.floor(team.waterUnits / state.settings.bucketCapacity), maxDeliveries);
+    while (team.deliveryIndex + 1 < deliveredBuckets) queueDelivery(team, timestamp);
+  });
+}
+
 async function joinGame(event) {
   event.preventDefault();
   const name = elements.playerName.value.trim().replace(/\s+/g, " ").slice(0, 16); elements.joinError.textContent = "";
@@ -334,15 +343,24 @@ async function joinGame(event) {
 async function sendTap() {
   if (!currentPlayer || game.status !== "running") return;
   try {
+    const player = game.players[currentPlayer.id];
+    if (!player?.team) return;
+    if (backend.type === "firebase") {
+      await firebaseApi.update(firebaseApi.roomRef, {
+        [`teams/${player.team}/waterUnits`]: firebaseApi.increment(1),
+        [`players/${currentPlayer.id}/taps`]: firebaseApi.increment(1)
+      });
+      return;
+    }
     await mutateGame((state) => {
-      const player = state.players[currentPlayer.id];
-      if (state.status !== "running" || !player?.team) return;
-      const team = state.teams[player.team];
+      const current = state.players[currentPlayer.id];
+      if (state.status !== "running" || !current?.team) return;
+      const team = state.teams[current.team];
       const previousBuckets = Math.floor(team.waterUnits / state.settings.bucketCapacity);
       team.waterUnits += 1;
       const deliveredBuckets = Math.floor(team.waterUnits / state.settings.bucketCapacity);
       if (deliveredBuckets > previousBuckets) queueDelivery(team, Date.now());
-      player.taps += 1;
+      current.taps += 1;
     });
   } catch (error) { showConnectionProblem(error); }
 }
@@ -355,7 +373,11 @@ async function startOrResetRound() {
 }
 
 async function prepareNextRound() {
-  await mutateGame((state) => { state.round += 1; state.status = "lobby"; state.countdownEndsAt = null; state.startedAt = null; state.finishedAt = null; state.finishAnimationEndsAt = null; state.winner = null; Object.values(state.teams).forEach((team) => { team.waterUnits = 0; team.deliveryIndex = -1; team.lastDeliveryAt = 0; team.deliveryEvents = []; }); Object.values(state.players).forEach((player) => { player.taps = 0; }); });
+  await mutateGame(resetRoundState);
+}
+
+function resetRoundState(state) {
+  state.round += 1; state.status = "lobby"; state.countdownEndsAt = null; state.startedAt = null; state.finishedAt = null; state.finishAnimationEndsAt = null; state.winner = null; Object.values(state.teams).forEach((team) => { team.waterUnits = 0; team.deliveryIndex = -1; team.lastDeliveryAt = 0; team.deliveryEvents = []; }); Object.values(state.players).forEach((player) => { player.taps = 0; });
 }
 
 async function autoAssignTeams() {
@@ -376,15 +398,28 @@ async function updateSetting(event) {
 }
 
 function showConnectionProblem(error) { console.error("遊戲同步失敗", error); elements.connectionBadge.textContent = "同步失敗"; elements.connectionBadge.className = "status-badge is-demo"; }
-function startNextRoundFromResult() { if (isHost && game.status === "finished") prepareNextRound().catch(showConnectionProblem); }
+function startNextRoundFromResult() {
+  if (!isHost || game.status !== "finished") return;
+  mutateGame((state) => {
+    if (state.status === "finished") resetRoundState(state);
+  }).catch(showConnectionProblem);
+}
 
 async function reconcileGameClock() {
   if (!isHost) { render(); return; }
   if (game.status === "countdown" && Date.now() >= game.countdownEndsAt) await mutateGame((state) => { if (state.status === "countdown" && Date.now() >= state.countdownEndsAt) { state.status = "running"; state.startedAt = Date.now(); } });
   if (game.status === "running") {
-    const ready = Object.keys(TEAM_META).filter((teamId) => teamMetrics(teamId).growthTotal >= teamMetrics(teamId).maxGrowth);
-    if (ready.length) await mutateGame((state) => {
+    const hasPendingDeliveries = Object.keys(TEAM_META).some((teamId) => {
+      const metric = teamMetrics(teamId);
+      return game.teams[teamId].deliveryIndex + 1 < Math.min(metric.deliveredBuckets, metric.maxGrowth);
+    });
+    const ready = Object.keys(TEAM_META).filter((teamId) => {
+      const metric = teamMetrics(teamId);
+      return metric.growthTotal >= metric.maxGrowth;
+    });
+    if (hasPendingDeliveries || ready.length) await mutateGame((state) => {
       if (state.status !== "running") return;
+      queuePendingDeliveries(state, Date.now());
       const winners = Object.keys(TEAM_META).filter((teamId) => Math.min(Math.floor(state.teams[teamId].waterUnits / state.settings.bucketCapacity), FINISH_PERSON_COUNT * state.settings.growthStages) >= FINISH_PERSON_COUNT * state.settings.growthStages);
       if (winners.length) {
         winners.sort((left, right) => state.teams[right].waterUnits - state.teams[left].waterUnits || left.localeCompare(right));
@@ -423,5 +458,4 @@ async function connectFirebase() {
 }
 
 async function initialise() { if (!await connectFirebase()) connectDemo(); bindEvents(); render(); window.setInterval(() => { reconcileGameClock().catch(showConnectionProblem); }, 250); }
-window.waterGrowthNextRound = startNextRoundFromResult;
 initialise();
