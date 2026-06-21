@@ -127,6 +127,36 @@
 - 已於本機確認主持網址產生房間 `JTGLCZ`，QR Code 玩家連結同步為 `?view=play&room=JTGLCZ`。
 - 快取版本更新為 `app.js?v=20260621-1`。
 
+### 2026-06-21：自動房間公開發布與結案交接
+
+- 已將自動房間流程及相關介面、Firebase 設定與文件同步至 GitHub `main`；GitHub 提交為 `8e1b93d`（`Generate host rooms automatically`）。
+- 已以公開網址 `https://jesuswaytaipeisrv.github.io/bucket/?view=host` 驗證：主持頁會自動改寫為含六碼 `room` 的網址，並載入 `app.js?v=20260621-1`。
+- 已執行 `node --check app.js` 與 `git diff --check`，均通過；本機主持頁亦驗證房間 `JTGLCZ` 與 QR Code 玩家網址一致。
+- 專案目前可供使用。剩餘的活動前風險控管為以兩到三支實機手機完整演練加入、分隊、倒數、點擊、接力、結算與下一輪，而非再進行程式或 Firebase 基本設定。
+
+### 2026-06-21：Claude 程式審查 P0/P1 第一批修正
+
+- 跑者動畫的 `aria-label` 現在會使用 `escapeHtml` 處理玩家名稱，避免玩家輸入的引號或 HTML 字元造成屬性注入。
+- 移除結算畫面的 inline `onclick`，只保留 JavaScript 事件監聽；同時在 Firebase transaction 內確認狀態必須仍為 `finished` 才會重設回合，避免重複點擊或請求競爭讓回合加兩次。
+- Firebase 模式的每次打水改為兩個原子 `increment` 更新（隊伍 `waterUnits` 與玩家 `taps`），不再對整份房間做 transaction。主持台只在新桶數待派發或出現勝隊時用 transaction 排入接力事件與結算。
+- 快取版本更新為 `app.js?v=20260621-3`。已完成 `node --check app.js`、`git diff --check`、規則 JSON parse，以及本機主持台載入與無 inline 結算處理器檢查。
+- 此批不是完整的防作弊權限設計；目前 Firebase Rules 仍只要求匿名登入。若活動需要防止惡意寫入或刪除，後續必須加入主持人身份、玩家 UID 綁定與更精細的 Rules 或後端驗證。
+
+### 2026-06-21：審查後延後項目
+
+依目前使用情境，以下項目不影響一般現場遊戲的加入、分隊、點擊、接力、結算與下一輪流程，經確認後暫不異動：
+
+- Firebase 權限模型：目前匿名使用者可寫入任一房間。若活動改為公開連結、提供獎品，或需要防止蓄意竄改時，再導入 `hostUid`、玩家 UID 綁定、欄位驗證與限制寫入路徑。
+- 主持人容錯：主持頁必須在活動全程保持開啟。若需要主持人可離線、切換設備或自動接手時，再設計主持權租約或後端裁決。
+- 跑者動畫與 DOM 重繪：目前效果可用；若實際活動出現明顯卡頓，再將動畫改為 CSS 時間軸或局部更新。
+- reduced motion、比賽中禁止離開、通用本機路徑、快取版本統一與自動化測試：屬可用性與維護改善，不影響目前玩法，留待後續整理。
+
+啟動上述工作前，先以兩到三支手機實機演練；只有實際遇到連線、效能、公平性或操作問題時才調整，以避免在活動前引入不必要的同步風險。
+
+### 2026-06-21：README 主控入口
+
+- GitHub README 的「立即遊玩」區塊保留醒目的「開啟遊戲主控台」連結，供主持人隨時建立新的房間並開始活動。
+
 ### 2026-06-19 至 2026-06-20：GitHub 發布
 
 - 本機 Git 倉庫已初始化，首個遊戲提交為 `4f020a5`（`Initial three-team water growth relay game`）。
@@ -135,13 +165,6 @@
 - 已上傳 README、使用說明、HTML、CSS、JavaScript、Firebase 設定範本、資料庫規則與 `.gitignore`；最後以 GitHub 檔案清單核對。
 - GitHub Pages 已設定為從 `main` 根目錄建置，公開網址為 `https://jesuswaytaipeisrv.github.io/bucket/`；首次建置完成前可能短暫顯示 404。
 
-### 尚待人工瀏覽器驗證
+### 活動前實機演練
 
-- 內建瀏覽器測試通道在本機導覽時沒有回應，未能完成自動化的視覺或點擊測試。
-- 部署或活動前，請以兩到三支實機手機跑完加入、倒數、連點、滿桶、結束與下一輪流程。
-
-### 待人工設定
-
-1. 將 `firebase-config.example.js` 複製內容填入 `firebase-config.js`。
-2. 將 `firebase-database.rules.json` 套用到 Firebase Console 的 Realtime Database Rules。
-3. 部署到公開 HTTPS 網址後，以兩到三支手機跑完一次加入、倒數、滿桶與重設。
+Firebase、GitHub Pages 與自動房間流程均已完成設定及基本驗證。活動前僅需以兩到三支實機手機跑完一次加入、分隊、倒數、連點、滿桶、結算與下一輪，確認現場網路、手機相機掃描與操作節奏符合預期。

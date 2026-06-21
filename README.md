@@ -2,16 +2,17 @@
 
 手機優先的三隊點擊遊戲。隊員人數不限，所有人以一群卡通隊員聚集在取水起點並輪流雙桶接力；每提滿一桶，就由一位隊員沈甸甸地提著兩桶水前往灌溉，倒水後折返，下一位同步起跑。水花會灑在終點五位卡通小人身上，小人依澆水比例平滑長大；最先全部長大的隊伍獲勝。
 
-## 線上遊戲
+## 立即遊玩
 
-- [建立新的主持房間](https://jesuswaytaipeisrv.github.io/bucket/?view=host)
+- **[開啟遊戲主控台](https://jesuswaytaipeisrv.github.io/bucket/?view=host)**
 
 主持人開啟連結後會自動產生六碼房間，網址與 QR Code 都會帶入該房間碼。玩家應掃描主持台 QR Code 加入；正式多人活動須確認頁面頂端顯示「即時多人模式」。
 
 ## 目前狀態
 
 - 已完成可操作的單頁遊戲：不限人數加入、主持人自動三隊分配、起點群眾、雙桶去回接力、終點小人成長、倒數、點擊、勝負與重設。
-- 已接上 Firebase Realtime Database，可讓多支手機加入同一房間即時比賽；不同房間碼可同時進行互不干擾的活動。
+- 已啟用 Firebase Realtime Database 與匿名登入，可讓多支手機加入同一房間即時比賽；不同主持人自動產生的房間碼可同時進行且互不干擾。
+- 已發布至 GitHub Pages；2026-06-21 已用公開主持網址確認自動產生房間碼與最新前端版本 `app.js?v=20260621-1`。
 - Firebase 連線失敗時，程式會退回 `localStorage` 與 `BroadcastChannel` 的同一瀏覽器示範模式。
 
 ## 文件
@@ -36,7 +37,7 @@ python3 -m http.server 5175
 - `index.html`：遊戲畫面與可及性標記
 - `styles.css`：手機優先的遊戲介面與動畫
 - `app.js`：狀態同步、點擊、倒水計算與主持控制
-- `firebase-config.js`：本機 Firebase Web 設定，預設不啟用
+- `firebase-config.js`：Firebase Web 公開設定，供 GitHub Pages 前端連線使用
 - `firebase-database.rules.json`：Realtime Database 規則範本
 
 ## 成本與安全
