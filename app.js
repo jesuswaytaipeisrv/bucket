@@ -27,6 +27,7 @@ let firebaseApi = null;
 let renderedQrUrl = "";
 let shareFeedback = "";
 let shareFeedbackTimer = null;
+let lastPointerTapAt = 0;
 
 const elements = {
   connectionBadge: document.querySelector("#connection-badge"), roomLabel: document.querySelector("#room-label"),
@@ -374,6 +375,17 @@ async function sendTap() {
   } catch (error) { showConnectionProblem(error); }
 }
 
+function sendTapFromPointer(event) {
+  if (!event.isPrimary) return;
+  lastPointerTapAt = Date.now();
+  event.preventDefault();
+  sendTap();
+}
+
+function sendTapFromClick(event) {
+  if (event.detail === 0 || Date.now() - lastPointerTapAt > 500) sendTap();
+}
+
 async function startOrResetRound() {
   try {
     if (game.status === "lobby") { await mutateGame((state) => { if (state.status === "lobby") { state.status = "countdown"; state.countdownEndsAt = Date.now() + state.settings.countdownSeconds * 1000; } }); return; }
@@ -443,7 +455,8 @@ async function reconcileGameClock() {
 
 function bindEvents() {
   elements.joinForm.addEventListener("submit", joinGame);
-  elements.tapButton.addEventListener("click", sendTap);
+  elements.tapButton.addEventListener("pointerdown", sendTapFromPointer);
+  elements.tapButton.addEventListener("click", sendTapFromClick);
   elements.changeTeamButton.addEventListener("click", async () => { if (!currentPlayer) return; const id = currentPlayer.id; try { await mutateGame((state) => { delete state.players[id]; }); sessionStorage.removeItem(playerKey); currentPlayer = null; render(); } catch (error) { showConnectionProblem(error); } });
   elements.startButton.addEventListener("click", startOrResetRound); elements.autoAssignButton.addEventListener("click", autoAssignTeams); elements.winnerNextButton.addEventListener("click", startNextRoundFromResult);
   elements.copyPlayerLinkButton.addEventListener("click", () => { copyPlayerJoinLink().catch(showConnectionProblem); });
