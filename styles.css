@@ -72,3 +72,63 @@ body[data-view="player"].is-player-joined .topbar { display: none; } body[data-v
   .tap-button-icon { font-size: clamp(30px, 9vw, 42px); }
   .tap-button-copy { margin-top: 4px; }
 }
+
+/* 主持頁採龍舟遊戲同樣的左側控制、右側全景賽場配置。 */
+body[data-view="host"] .app-shell { background: #f7faf8; }
+body[data-view="host"] .topbar { width: 100%; max-width: none; border-bottom: 1px solid #d8e2df; background: #fffefa; }
+body[data-view="host"] .host-view { display: grid; grid-template-columns: minmax(300px, 370px) minmax(0, 1fr); width: 100%; max-width: none; min-height: calc(100dvh - 93px); margin: 0; padding: 0; }
+.host-control-panel { min-width: 0; padding: 20px; border-right: 1px solid #d8e2df; background: #fffefa; }
+.host-control-panel .host-command { display: grid; gap: 16px; padding: 0 0 18px; border-top: 0; }
+.host-control-panel .host-actions { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; }
+.host-control-panel .host-actions .command-button { grid-column: span 2; }
+.host-control-panel .settings-strip { grid-template-columns: 1fr; gap: 8px; padding: 16px 0; }
+.host-control-panel .settings-strip label { grid-template-columns: 1fr 62px auto; }
+.host-control-panel .settings-strip input { width: 62px; }
+.host-control-panel .join-share { grid-template-columns: 1fr; gap: 14px; padding: 16px 0; }
+.host-control-panel .qr-code-frame { width: 160px; min-height: 160px; }
+.host-control-panel .roster-band { margin-top: 0; }
+body[data-view="host"] .host-view > .scoreboard { min-width: 0; padding: 22px; background: #f3ead4; }
+
+/* 三隊共用同一片沙地，由右側起點往左側灌溉終點移動。 */
+.irrigation-stage { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: calc(100dvh - 137px); margin: 0; border-color: #d4b675; border-radius: 8px; background-color: #efd59a; background-image: radial-gradient(circle at 18% 20%, rgba(255,255,255,0.4) 0 2px, transparent 3px), radial-gradient(circle at 78% 42%, rgba(159,99,35,0.18) 0 2px, transparent 3px), repeating-linear-gradient(145deg, rgba(162,104,33,0.08) 0 1px, transparent 1px 22px), linear-gradient(180deg, #f8e5b6, #e7c274); }
+.irrigation-stage::before { right: -5%; bottom: -30px; left: -5%; height: 100px; background: repeating-radial-gradient(ellipse at center bottom, transparent 0 12px, rgba(164,102,28,0.18) 13px 15px), linear-gradient(180deg, rgba(226,169,81,0.26), rgba(177,111,29,0.28)); }
+.irrigation-stage-header { padding: 18px 22px 16px; background: rgba(255,249,224,0.58); }
+.field-lanes { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; min-height: 0; padding: 14px 18px 18px; gap: 12px; }
+.field-team { display: grid; grid-template-columns: 125px minmax(0, 1fr); min-height: 0; }
+.field-team-header { flex-direction: column; align-items: flex-start; justify-content: center; gap: 3px; min-height: 0; padding: 12px 12px 12px 2px; border-right: 2px dashed rgba(131,79,26,0.2); }
+.field-team-header h3 { font-size: 19px; }.field-team-header strong { font-size: 18px; }.field-team-header small { color: #80572c; font-size: 12px; font-weight: 800; }
+.irrigation-stage .field-lane { min-height: 150px; height: auto; border: 0; border-radius: 18px; background: linear-gradient(90deg, rgba(255,255,255,0.2), transparent 35%, rgba(255,255,255,0.14)); }
+.irrigation-stage .field-lane::before { top: 50%; right: 148px; bottom: auto; left: 178px; width: auto; height: 0; border: 0; border-top: 4px dashed rgba(255,255,255,0.72); transform: translateY(-50%); }
+.irrigation-stage .finish-platform { top: 14px; right: auto; bottom: 14px; left: 0; width: 166px; min-height: 0; padding: 8px 5px; border: 0; border-left: 5px solid var(--team); border-radius: 22px 12px 12px 22px; background: rgba(255,250,229,0.84); }
+.irrigation-stage .finish-platform.is-being-watered { background: rgba(229,251,255,0.92); }
+.irrigation-stage .finish-label { font-size: 11px; }.irrigation-stage .tiny-people { height: calc(100% - 22px); gap: 0; padding-top: 0; }
+.irrigation-stage .growth-meter { top: 22px; right: 176px; bottom: 22px; width: 10px; background: rgba(255,255,255,0.58); }
+.irrigation-stage .water-well { top: 14px; right: 0; bottom: 14px; left: auto; width: 138px; height: auto; padding-top: 10px; border-radius: 12px 22px 22px 12px; background: linear-gradient(90deg, color-mix(in srgb, var(--team), #273b2e 24%), var(--team)); }
+.irrigation-stage .water-well::before { top: 28px; width: 76px; height: 22px; }.irrigation-stage .starting-crowd { right: 2px; bottom: 6px; left: 2px; grid-template-columns: repeat(7, 17px); padding: 0; }
+.irrigation-stage .relay-runner { bottom: 50%; left: var(--relay-left); width: 64px; height: 86px; transform: translate(-50%, 50%); transition: left 260ms linear, transform 220ms ease, opacity 180ms ease; }
+.irrigation-stage .relay-runner.is-returning, .irrigation-stage .relay-runner.is-next-outbound { left: var(--relay-left); opacity: 0.96; }
+.irrigation-stage .relay-runner.is-pouring { transform: translate(-50%, 50%) rotate(-10deg); }
+.irrigation-stage .runner-head { top: 7px; left: 21px; width: 22px; height: 22px; }.irrigation-stage .runner-hair { top: 2px; left: 20px; width: 24px; height: 14px; border-radius: 14px 14px 5px 5px; }
+.irrigation-stage .runner-body { top: 28px; left: 15px; width: 34px; height: 34px; border-radius: 14px 14px 9px 9px; }.irrigation-stage .runner-badge { padding-top: 8px; font-size: 11px; }
+.irrigation-stage .runner-legs { top: 58px; left: 19px; width: 26px; height: 24px; border-right-width: 6px; border-left-width: 6px; }.irrigation-stage .runner-arm { top: 35px; width: 23px; height: 10px; }.irrigation-stage .runner-bucket { bottom: 7px; width: 21px; height: 25px; }.irrigation-stage .runner-bucket-left { left: -13px; }.irrigation-stage .runner-bucket-right { right: -13px; }.irrigation-stage .runner-bucket::before { left: 3px; width: 9px; }
+.runner-bow, .person-bow, .crowd-bow { position: absolute; z-index: 5; width: 9px; height: 9px; border-radius: 55% 45% 55% 45%; background: #f9c74f; box-shadow: -5px 2px 0 #f9c74f, 0 0 0 2px rgba(255,255,255,0.56); transform: rotate(28deg); }
+.runner-bow { top: 3px; left: 43px; }.person-bow { top: 6px; left: 22px; transform: scale(0.58) rotate(28deg); }.crowd-bow { top: 2px; left: 12px; transform: scale(0.42) rotate(28deg); }
+.runner-smile, .person-smile { position: absolute; left: 50%; width: 7px; height: 4px; border-bottom: 1.5px solid #a85055; border-radius: 0 0 9px 9px; transform: translateX(-50%); }.runner-smile { top: 14px; }.person-smile { top: 14px; width: 5px; height: 3px; border-width: 1px; }
+.person-bow + .person-hair { background: #7c4b3b; }.tiny-person { filter: drop-shadow(0 3px 2px rgba(16,42,67,0.16)); }.person-head { width: 18px; height: 18px; }.person-eye { top: 7px; width: 2.5px; height: 3.5px; }.person-cheek { top: 12px; }.crowd-face b { position: absolute; top: 7px; left: 3px; width: 3px; height: 1px; border-bottom: 1px solid #a85055; border-radius: 0 0 4px 4px; }
+.runner-dust { position: absolute; right: -24px; bottom: 3px; display: flex; align-items: end; gap: 2px; width: 32px; height: 20px; pointer-events: none; animation: dust-drift 520ms ease-out infinite alternate; }.runner-dust i { display: block; width: 10px; height: 10px; border-radius: 50%; background: rgba(196,137,68,0.58); box-shadow: 8px 3px 0 -2px rgba(216,160,88,0.52); }.runner-dust i:nth-child(2) { width: 7px; height: 7px; margin-bottom: 7px; opacity: 0.76; }.runner-dust i:nth-child(3) { width: 5px; height: 5px; margin-bottom: 13px; opacity: 0.5; }.relay-runner.is-pouring .runner-dust { display: none; }
+@keyframes dust-drift { from { transform: translate(0, 0) scale(0.72); opacity: 0.3; } to { transform: translate(12px, -13px) scale(1.2); opacity: 0.95; } }
+
+@media (max-width: 960px) {
+  body[data-view="host"] .host-view { grid-template-columns: 1fr; }
+  .host-control-panel { border-right: 0; border-bottom: 1px solid #d8e2df; }
+  .host-control-panel .join-share { grid-template-columns: minmax(0, 1fr) auto; }
+  body[data-view="host"] .host-view > .scoreboard { padding: 16px; }
+  .irrigation-stage { min-height: 620px; }
+}
+
+@media (max-width: 640px) {
+  .host-control-panel .host-actions { grid-template-columns: 1fr 1fr auto; flex-direction: initial; }
+  .host-control-panel .join-share { grid-template-columns: 1fr; }
+  .field-lanes { min-width: 680px; }
+  .irrigation-stage { overflow-x: auto; min-height: 560px; }
+}

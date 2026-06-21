@@ -175,20 +175,20 @@ function personMarkup(stage, index, growthStages) {
   const scale = 0.24 + ratio * 0.76;
   const label = ratio >= 1 ? "已長大" : `吸收水分 ${Math.round(ratio * 100)}%`;
   return `<div class="tiny-person ${ratio >= 1 ? "is-grown" : ""}" style="--person-scale:${scale};--person-water:${Math.round(ratio * 100)}%" aria-label="第 ${index + 1} 位小人，${label}">
-    <span class="person-hair"></span><span class="person-head"><span class="person-eye eye-left"></span><span class="person-eye eye-right"></span><span class="person-cheek cheek-left"></span><span class="person-cheek cheek-right"></span></span>
+    <span class="person-bow"></span><span class="person-hair"></span><span class="person-head"><span class="person-eye eye-left"></span><span class="person-eye eye-right"></span><span class="person-cheek cheek-left"></span><span class="person-cheek cheek-right"></span><span class="person-smile"></span></span>
     <span class="person-body"><span class="person-heart"></span></span><span class="person-arms"></span><span class="person-legs"></span>
   </div>`;
 }
 
 function runnerMarkup(role, progress, pouring, label) {
-  const offset = Math.round(progress * 172);
+  const left = Math.round(85 - progress * 70);
   const accessibleLabel = escapeHtml(label);
-  return `<div class="relay-runner ${role} ${pouring ? "is-pouring" : ""}" style="--relay-offset:-${offset}px" aria-label="${accessibleLabel}">
-    <span class="runner-hair"></span><span class="runner-head"><span class="runner-eye eye-left"></span><span class="runner-eye eye-right"></span><span class="runner-cheek cheek-left"></span><span class="runner-cheek cheek-right"></span></span><span class="runner-body"><span class="runner-badge">♥</span></span><span class="runner-legs"></span>
+  return `<div class="relay-runner ${role} ${pouring ? "is-pouring" : ""}" style="--relay-left:${left}%" aria-label="${accessibleLabel}">
+    <span class="runner-bow"></span><span class="runner-hair"></span><span class="runner-head"><span class="runner-eye eye-left"></span><span class="runner-eye eye-right"></span><span class="runner-cheek cheek-left"></span><span class="runner-cheek cheek-right"></span><span class="runner-smile"></span></span><span class="runner-body"><span class="runner-badge">♥</span></span><span class="runner-legs"></span>
     <span class="runner-arm runner-arm-left"></span><span class="runner-arm runner-arm-right"></span>
     <span class="runner-bucket runner-bucket-left"><i></i></span><span class="runner-bucket runner-bucket-right"><i></i></span>
     <span class="bucket-spray bucket-spray-left"><i></i><i></i><i></i></span><span class="bucket-spray bucket-spray-right"><i></i><i></i><i></i></span>
-    <span class="irrigation-splash"></span>
+    <span class="irrigation-splash"></span><span class="runner-dust"><i></i><i></i><i></i></span>
   </div>`;
 }
 
@@ -226,7 +226,7 @@ function crowdMarkup(teamId) {
   const visible = Array.from({ length: visibleCount }, (_, index) => {
     const player = members[index];
     const name = player?.name || "接力隊員";
-    return `<span class="crowd-member ${player ? "" : "is-support"}" style="--crowd-shift:${(index % 3) * 3}px" title="${escapeHtml(name)}" aria-label="${escapeHtml(name)}"><span class="crowd-hair"></span><span class="crowd-face"><i class="eye-left"></i><i class="eye-right"></i></span><span class="crowd-shirt"></span></span>`;
+    return `<span class="crowd-member ${player ? "" : "is-support"}" style="--crowd-shift:${(index % 3) * 3}px" title="${escapeHtml(name)}" aria-label="${escapeHtml(name)}"><span class="crowd-bow"></span><span class="crowd-hair"></span><span class="crowd-face"><i class="eye-left"></i><i class="eye-right"></i><b></b></span><span class="crowd-shirt"></span></span>`;
   }).join("");
   const overflow = members.length > 12 ? `<strong class="crowd-overflow">+${members.length - 12}</strong>` : "";
   return `${visible}${overflow}`;
@@ -236,21 +236,20 @@ function irrigationLaneMarkup(teamId) {
   const meta = TEAM_META[teamId];
   const metric = teamMetrics(teamId);
   const people = metric.people.map((stage, index) => personMarkup(stage, index, game.settings.growthStages)).join("");
-  return `<section class="field-team" style="--team:${meta.color};--team-dark:${meta.dark};--growth:${metric.progress}%" aria-label="${meta.name}由下往上雙桶灌溉">
-    <header class="field-team-header"><div><h3>${meta.name}</h3><span>${teamPlayers(teamId).length} 位隊員</span></div><strong>${metric.deliveredBuckets} 桶</strong></header>
+  return `<section class="field-team" style="--team:${meta.color};--team-dark:${meta.dark};--growth:${metric.progress}%" aria-label="${meta.name}由右往左雙桶灌溉">
+    <header class="field-team-header"><div><h3>${meta.name}</h3><span>${teamPlayers(teamId).length} 位隊員</span></div><strong>${metric.deliveredBuckets} 桶</strong><small>成長 ${metric.progress}%</small></header>
     <div class="vertical-lane field-lane">
-      <div class="finish-platform ${isPouringAtFinish(teamId) ? "is-being-watered" : ""}"><span class="finish-label">終點灌溉區</span><div class="watering-rain" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><div class="tiny-people">${people}</div></div>
+      <div class="finish-platform ${isPouringAtFinish(teamId) ? "is-being-watered" : ""}"><span class="finish-label">灌溉終點</span><div class="watering-rain" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><div class="tiny-people">${people}</div></div>
       <div class="growth-meter"><span style="height:${metric.progress}%"></span></div>
       <div class="runner-group">${relayMarkup(teamId)}</div>
       <div class="water-well"><span>取水起點</span><div class="starting-crowd" aria-label="${meta.name}起點隊員">${crowdMarkup(teamId)}</div></div>
     </div>
-    <footer class="field-team-footer"><span>提水 ${metric.units} 次</span><strong>成長 ${metric.progress}%</strong></footer>
   </section>`;
 }
 
 function sharedRaceStageMarkup() {
   return `<section class="irrigation-stage" aria-label="三隊共用沙地灌溉賽場">
-    <header class="irrigation-stage-header"><div><p class="section-label">三隊同場接力</p><h3>沙地灌溉賽場</h3></div><span>由起點提水到終點，讓五位小人長大</span></header>
+    <header class="irrigation-stage-header"><div><p class="section-label">三隊同場接力</p><h3>沙地灌溉賽場</h3></div><span>從右側取水起點出發，往左側終點灌溉</span></header>
     <div class="field-lanes">${Object.keys(TEAM_META).map(irrigationLaneMarkup).join("")}</div>
   </section>`;
 }
