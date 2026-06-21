@@ -118,6 +118,7 @@
 - 提水遊戲改用既有 `dragon-boat-race` Firebase Web config，資料路徑為 `water-splash-race/rooms/<房間碼>`，可與龍舟遊戲的 `rooms/<房間碼>` 並存。
 - 已以匿名登入建立、讀取並刪除暫時房間 `CODEX_FIREBASE_CHECK_20260621`，確認 Authentication、Realtime Database Rules 與提水遊戲資料路徑均可正常運作。
 - 正式活動可使用不同網址房間碼，例如 `GROUPA2026` 與 `GROUPB2026`，讓兩組玩家同步進行且互不干擾。
+- 已同步至 GitHub `main`，GitHub Pages 將自動重新建置即時多人版本。
 
 ### 2026-06-19 至 2026-06-20：GitHub 發布
 
