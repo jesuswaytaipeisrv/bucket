@@ -38,7 +38,7 @@ const elements = {
   hostScoreboard: document.querySelector("#host-scoreboard"), playerCount: document.querySelector("#player-count"), playerRoster: document.querySelector("#player-roster"),
   joinPanel: document.querySelector("#join-panel"), tapPanel: document.querySelector("#tap-panel"), joinForm: document.querySelector("#join-form"),
   playerName: document.querySelector("#player-name"), joinError: document.querySelector("#join-error"), yourTeamLabel: document.querySelector("#your-team-label"),
-  tapHeading: document.querySelector("#tap-heading"), tapCounter: document.querySelector("#tap-counter"), playerProgress: document.querySelector("#player-progress"),
+  tapHeading: document.querySelector("#tap-heading"), tapCounter: document.querySelector("#tap-counter"),
   tapMessage: document.querySelector("#tap-message"), tapButton: document.querySelector("#tap-button"), changeTeamButton: document.querySelector("#change-team-button"),
   winnerOverlay: document.querySelector("#winner-overlay"), winnerTitle: document.querySelector("#winner-title"), winnerCopy: document.querySelector("#winner-copy"), winnerNextButton: document.querySelector("#winner-next-button")
 };
@@ -231,20 +231,27 @@ function crowdMarkup(teamId) {
   return `${visible}${overflow}`;
 }
 
-function teamBoardMarkup(teamId) {
+function irrigationLaneMarkup(teamId) {
   const meta = TEAM_META[teamId];
   const metric = teamMetrics(teamId);
   const people = metric.people.map((stage, index) => personMarkup(stage, index, game.settings.growthStages)).join("");
-  return `<article class="team-board vertical-team" style="--team:${meta.color};--team-dark:${meta.dark};--growth:${metric.progress}%">
-    <header class="team-board-header"><div><h3>${meta.name}</h3><span>${teamPlayers(teamId).length} 位隊員，輪流雙桶接力</span></div><strong>${metric.deliveredBuckets} 桶</strong></header>
-    <div class="vertical-lane" aria-label="${meta.name}由下往上雙桶灌溉">
+  return `<section class="field-team" style="--team:${meta.color};--team-dark:${meta.dark};--growth:${metric.progress}%" aria-label="${meta.name}由下往上雙桶灌溉">
+    <header class="field-team-header"><div><h3>${meta.name}</h3><span>${teamPlayers(teamId).length} 位隊員</span></div><strong>${metric.deliveredBuckets} 桶</strong></header>
+    <div class="vertical-lane field-lane">
       <div class="finish-platform ${isPouringAtFinish(teamId) ? "is-being-watered" : ""}"><span class="finish-label">終點灌溉區</span><div class="watering-rain" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><div class="tiny-people">${people}</div></div>
       <div class="growth-meter"><span style="height:${metric.progress}%"></span></div>
       <div class="runner-group">${relayMarkup(teamId)}</div>
       <div class="water-well"><span>取水起點</span><div class="starting-crowd" aria-label="${meta.name}起點隊員">${crowdMarkup(teamId)}</div></div>
     </div>
-    <footer class="team-board-footer"><span>提水 ${metric.units} 次</span><strong>成長水分 ${metric.progress}%</strong></footer>
-  </article>`;
+    <footer class="field-team-footer"><span>提水 ${metric.units} 次</span><strong>成長 ${metric.progress}%</strong></footer>
+  </section>`;
+}
+
+function sharedRaceStageMarkup() {
+  return `<section class="irrigation-stage" aria-label="三隊共用沙地灌溉賽場">
+    <header class="irrigation-stage-header"><div><p class="section-label">三隊同場接力</p><h3>沙地灌溉賽場</h3></div><span>由起點提水到終點，讓五位小人長大</span></header>
+    <div class="field-lanes">${Object.keys(TEAM_META).map(irrigationLaneMarkup).join("")}</div>
+  </section>`;
 }
 
 function statusCopy() {
@@ -263,6 +270,8 @@ function render() {
   elements.connectionBadge.textContent = backend.type === "firebase" ? "即時多人模式" : "示範模式";
   elements.connectionBadge.className = `status-badge ${backend.type === "firebase" ? "is-live" : "is-demo"}`;
   elements.hostView.hidden = !isHost; elements.playerView.hidden = isHost;
+  document.body.dataset.view = isHost ? "host" : "player";
+  document.body.classList.toggle("is-player-joined", !isHost && Boolean(currentPlayer && game.players[currentPlayer.id]));
 
   if (isHost) {
     const locked = game.status !== "lobby";
@@ -273,7 +282,7 @@ function render() {
     elements.autoAssignButton.disabled = locked || totalPlayers === 0;
     elements.bucketCapacity.value = String(game.settings.bucketCapacity); elements.growthStages.value = String(game.settings.growthStages); elements.countdownSeconds.value = String(game.settings.countdownSeconds);
     [elements.bucketCapacity, elements.growthStages, elements.countdownSeconds].forEach((input) => { input.disabled = locked; });
-    elements.hostScoreboard.innerHTML = Object.keys(TEAM_META).map(teamBoardMarkup).join("");
+    elements.hostScoreboard.innerHTML = sharedRaceStageMarkup();
     elements.playerCount.textContent = `${totalPlayers} 人`;
     const roster = Object.values(game.players).sort((a, b) => a.joinedAt - b.joinedAt);
     elements.playerRoster.innerHTML = roster.length ? roster.map((player) => `<span class="player-pill" style="--team:${TEAM_META[player.team]?.color || "#687d94"}">${escapeHtml(player.name)}${player.team ? "" : "（待分隊）"}</span>`).join("") : '<span class="empty-roster">尚未有人加入</span>';
@@ -294,12 +303,12 @@ function renderPlayerPanel() {
   if (!player?.team) {
     elements.yourTeamLabel.textContent = "等待分隊"; elements.tapCounter.textContent = "0 次";
     elements.tapHeading.textContent = "等待主持人自動分隊"; elements.tapMessage.textContent = "主持人完成分隊後，這裡會自動顯示你的隊伍。";
-    elements.playerProgress.innerHTML = ""; elements.tapButton.disabled = true; return;
+    elements.tapButton.disabled = true; return;
   }
   const teamId = player.team; const metric = teamMetrics(teamId);
   const countdownSeconds = game.countdownEndsAt ? Math.max(0, Math.ceil((game.countdownEndsAt - Date.now()) / 1000)) : 0;
   elements.yourTeamLabel.textContent = TEAM_META[teamId].name; elements.tapCounter.textContent = `${Number(player?.taps || 0)} 次`;
-  elements.playerProgress.innerHTML = teamBoardMarkup(teamId); elements.tapButton.disabled = game.status !== "running";
+  elements.tapButton.disabled = game.status !== "running";
   elements.tapHeading.textContent = game.status === "running" ? "快速打水" : game.status === "finishing" ? "最後一趟回程中" : game.status === "finished" ? "本回合結束" : game.status === "countdown" ? `${countdownSeconds} 秒後開始` : "準備提水";
   elements.tapMessage.textContent = game.status === "running" ? `五位小人的成長水分已達 ${metric.progress}%，繼續提水。` : game.status === "finishing" ? "隊員正在帶著空桶返回起點，請等待結算。" : game.status === "finished" ? `${TEAM_META[game.winner]?.name || "本回合"}最先完成灌溉。` : game.status === "countdown" ? "倒數中，先把手指放在按鈕上。" : "等待主持人開始。";
 }
