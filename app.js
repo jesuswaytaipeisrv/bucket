@@ -10,8 +10,13 @@ const TEAM_META = {
 };
 const STORAGE_PREFIX = "water-splash-race";
 const query = new URLSearchParams(window.location.search);
-const roomCode = (query.get("room") || "WATER2026").trim().toUpperCase().replace(/[^A-Z0-9_-]/g, "").slice(0, 32) || "WATER2026";
 const isHost = query.get("view") === "host";
+const requestedRoomCode = normalizeRoomCode(query.get("room"));
+const roomCode = requestedRoomCode || (isHost ? makeRoomCode() : "WATER2026");
+if (isHost && !requestedRoomCode) {
+  query.set("room", roomCode);
+  window.history.replaceState(null, "", `${window.location.pathname}?${query.toString()}${window.location.hash}`);
+}
 const localKey = `${STORAGE_PREFIX}:${roomCode}`;
 const playerKey = `${STORAGE_PREFIX}:${roomCode}:player`;
 
@@ -49,6 +54,17 @@ function createDefaultState() {
 function clampNumber(value, fallback, min, max) {
   const number = Number(value);
   return Number.isFinite(number) ? Math.min(max, Math.max(min, Math.round(number))) : fallback;
+}
+
+function normalizeRoomCode(value) {
+  return String(value || "").trim().toUpperCase().replace(/[^A-Z0-9_-]/g, "").slice(0, 32);
+}
+
+function makeRoomCode() {
+  const characters = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const values = new Uint32Array(6);
+  crypto.getRandomValues(values);
+  return Array.from(values, (value) => characters[value % characters.length]).join("");
 }
 
 function normalizeDeliveryEvents(events, deliveryIndex, lastDeliveryAt) {

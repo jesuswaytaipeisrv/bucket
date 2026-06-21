@@ -4,10 +4,9 @@
 
 ## 線上遊戲
 
-- [開啟主持台](https://jesuswaytaipeisrv.github.io/bucket/?view=host&room=WATER2026)
-- [開啟玩家頁](https://jesuswaytaipeisrv.github.io/bucket/?view=play&room=WATER2026)
+- [建立新的主持房間](https://jesuswaytaipeisrv.github.io/bucket/?view=host)
 
-兩個連結使用同一個預設房間 `WATER2026`。正式多人活動須完成 Firebase 設定，並確認頁面頂端顯示「即時多人模式」。
+主持人開啟連結後會自動產生六碼房間，網址與 QR Code 都會帶入該房間碼。玩家應掃描主持台 QR Code 加入；正式多人活動須確認頁面頂端顯示「即時多人模式」。
 
 ## 目前狀態
 
@@ -28,9 +27,9 @@ cd /Users/garyhuang/Documents/Codex/2026-06-19/new-chat/water-splash-race
 python3 -m http.server 5175
 ```
 
-開啟主持台：`http://127.0.0.1:5175/?view=host&room=WATER2026`。
+開啟主持台：`http://127.0.0.1:5175/?view=host`。
 
-同一台裝置示範時，可另開 `?view=play&room=WATER2026`。正式多人活動請先依 [使用說明](USER_GUIDE.md) 設定 Firebase，並使用公開 HTTPS 網址。
+主持頁會自動改成帶有房間碼的網址；同一台裝置示範時，可將該網址的 `room` 複製到 `?view=play&room=房間碼`。正式多人活動請先依 [使用說明](USER_GUIDE.md) 設定 Firebase，並使用公開 HTTPS 網址。
 
 ## 專案結構
 
