@@ -12,8 +12,8 @@
 ## 目前狀態
 
 - 已完成可操作的單頁遊戲：不限人數加入、主持人自動三隊分配、起點群眾、雙桶去回接力、終點小人成長、倒數、點擊、勝負與重設。
-- 未設定 Firebase 時，使用 `localStorage` 與 `BroadcastChannel` 作同一瀏覽器示範。
-- 設定 Firebase Realtime Database 後，可讓多支手機加入同一房間即時比賽。
+- 已接上 Firebase Realtime Database，可讓多支手機加入同一房間即時比賽；不同房間碼可同時進行互不干擾的活動。
+- Firebase 連線失敗時，程式會退回 `localStorage` 與 `BroadcastChannel` 的同一瀏覽器示範模式。
 
 ## 文件
 

@@ -113,6 +113,12 @@
 
 - 在 GitHub README 新增公開遊戲、主持台與玩家頁連結，預設使用房間 `WATER2026`。
 
+### 2026-06-21：Firebase 多房間連線啟用
+
+- 提水遊戲改用既有 `dragon-boat-race` Firebase Web config，資料路徑為 `water-splash-race/rooms/<房間碼>`，可與龍舟遊戲的 `rooms/<房間碼>` 並存。
+- 已以匿名登入建立、讀取並刪除暫時房間 `CODEX_FIREBASE_CHECK_20260621`，確認 Authentication、Realtime Database Rules 與提水遊戲資料路徑均可正常運作。
+- 正式活動可使用不同網址房間碼，例如 `GROUPA2026` 與 `GROUPB2026`，讓兩組玩家同步進行且互不干擾。
+
 ### 2026-06-19 至 2026-06-20：GitHub 發布
 
 - 本機 Git 倉庫已初始化，首個遊戲提交為 `4f020a5`（`Initial three-team water growth relay game`）。
